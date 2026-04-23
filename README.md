@@ -1,4 +1,4 @@
-# Opensource-Framework-Reasearcher
+# Opensource-Framework-Researcher
 
 A Claude Code [skill](https://docs.claude.com/en/docs/claude-code/skills) that runs a multi-agent investigation of one **(chip vendor, framework, feature)** triple in the open-source AI inference / training ecosystem and emits dashboard-ready outputs.
 
@@ -52,7 +52,7 @@ Clone into your Claude Code skills directory:
 
 ```bash
 mkdir -p ~/.claude/skills
-git clone https://github.com/M4jupitercannon/Opensource-Framework-Reasearcher.git \
+git clone https://github.com/M4jupitercannon/Opensource-Framework-Researcher.git \
     ~/.claude/skills/feature-research
 ```
 
