@@ -9,7 +9,7 @@ Examples of triples this skill handles:
 - `NVIDIA + TensorRT-LLM + speculative-decoding`
 - `Google + JAX + paged-KV` *(if your framework→repo map is extended)*
 
-It generalizes the methodology of a hand-run vLLM-EP investigation: 5 parallel research sub-agents fan out per topic, a serial monitor sub-agent independently verifies every PR / issue / URL via the GitHub CLI and `WebFetch`, and the main agent synthesizes a single highlighted Markdown report from per-topic JSON files.
+It generalizes the methodology of a hand-run vLLM-EP investigation: **5 parallel Phase-1a researcher sub-agents** fan out across the default topics, then **1 serial Phase-1b analyzer sub-agent** derives external-repo dependencies from three of those topic outputs, three serial verification monitors (existence, chip-vendor scope, feature strictness) independently re-check every PR / issue / URL via the GitHub CLI and `WebFetch`, and the main agent synthesizes a single highlighted Markdown report from per-topic JSON files.
 
 ## What you get per run
 
@@ -19,7 +19,9 @@ Under `~/research/{framework}_{feature}/{YYYY-MM-DD}/`:
 |---|---|
 | `topics/*.json` | One file per research topic, **stable schema** — feed straight into a dashboard. |
 | `scope.json` | Auto-derived chip-vendor scope (in/out SKUs) used for filtering. |
-| `verification.md` | Independent monitor's audit trail with verdict `GREEN` / `YELLOW` / `RED` and a must-fix punch list. |
+| `verification_existence.md` | Stage 1 audit (PR/issue/URL existence + verbatim quotes), with verdict `GREEN` / `YELLOW` / `RED` and must-fix punch list. |
+| `verification_scope.md` | Stage 2 audit (chip-vendor scope strictness), with verdict and must-fix punch list. |
+| `verification_feature.md` | Stage 3 audit (feature strictness), with verdict and must-fix punch list. |
 | `REPORT.md` | Synthesized human-readable report — At-a-Glance dashboard table + one section per topic with a primary table optimized for dashboard ingestion. |
 
 Section headings use **named topics** (e.g. `## Completed Subfeatures`, `## Open Issues`, `## Roadmap`, `## Performance Numbers`, `## Kernels & Components`) — never `Q1`/`Q2`/etc. — so dashboards can bookmark stable anchors.
@@ -33,6 +35,9 @@ Section headings use **named topics** (e.g. `## Completed Subfeatures`, `## Open
 | `roadmap` | Roadmap | Official roadmap items + recent RFCs. |
 | `perf_numbers` | Performance Numbers | Verified perf gains, each backed by a verbatim source quote. |
 | `kernels_or_components` | Kernels & Components | Low-level kernels / libraries on the critical path (DeepGEMM, CUTLASS, FlashInfer, hipBLASLt, …). |
+| `external_repo_dependencies` | External Repo Dependencies | External open-source repos each completed subfeature depends on or contributes back to (kernel libs, comm libs, etc.). Produced by a Phase-1b analyzer, not a generic researcher. |
+
+Note: `external_repo_dependencies` is produced by an analyzer sub-agent in Phase 1b, not a generic Phase-1a researcher. It requires `completed_subfeatures`, `kernels_or_components`, and `open_issues` to exist on disk first.
 
 Topics are user-configurable: pass a subset to limit scope, or supply custom topic specs (name + prompt + entry schema).
 
@@ -74,17 +79,18 @@ In any Claude Code session, just name the triple naturally:
 The skill walks through:
 
 1. **Phase 0** — resolve scope from chip vendor (in-scope SM/CDNA/XPU codes + out-of-scope drops).
-2. **Phase 1** — spawn one researcher sub-agent per topic, in parallel. Each verifies every PR / issue with `gh` before writing its JSON.
-3. **Phase 2** — spawn a serial monitor sub-agent that re-samples ≥80 % of PRs and ≥90 % of issues / URLs and writes `verification.md`.
-4. **Phase 3** — apply YELLOW / RED must-fixes, synthesize `REPORT.md`.
-5. **Phase 4** — print paths to the four artifacts.
+2. **Phase 1a** — spawn one researcher sub-agent per default topic, in parallel (excluding `external_repo_dependencies`). Each verifies every PR / issue with `gh` before writing its JSON.
+3. **Phase 1b** — once `completed_subfeatures.json`, `kernels_or_components.json`, and `open_issues.json` are on disk, spawn one serial `analyzer_external_repos` sub-agent that derives `external_repo_dependencies.json` from them (verifying every external-repo ref against its OWN repo).
+4. **Phase 2** — three serial verification monitor sub-agents in series: Stage 1 (`monitor_existence`) re-samples PR/issue/URL existence and verbatim quotes, Stage 2 (`monitor_scope`) audits chip-vendor scope, Stage 3 (`monitor_feature`) audits feature strictness. Each writes its own `verification_*.md`; later stages run only after the prior stage reaches GREEN/YELLOW.
+5. **Phase 3** — apply YELLOW / AMBER / RED must-fixes from all three stages, synthesize `REPORT.md`.
+6. **Phase 4** — print paths to all artifacts (`REPORT.md`, the three `verification_*.md` files, `scope.json`, and the per-topic JSONs under `topics/`).
 
 ## Repo layout
 
 ```
 SKILL.md                     # entry + 4-phase orchestration contract
 topics/
-  default_topics.md          # 5 default topic definitions (prompt + entry schema each)
+  default_topics.md          # 6 default topic definitions (prompt + entry schema each) — 5 Phase-1a researchers + 1 Phase-1b analyzer
   topic_json_schema.md       # required JSON shape every topic file must conform to
 scope/
   chip_scope_map.md          # NVIDIA / AMD / Intel / Google TPU scope rules
@@ -92,7 +98,10 @@ sources/
   source_playbook.md         # gh / WebFetch / WebSearch / MLPerf / InferenceX recipes
 agents/
   researcher.md              # per-topic researcher sub-agent prompt template
-  monitor.md                 # verification sub-agent prompt template
+  analyzer_external_repos.md # Phase-1b external-repo analyzer sub-agent prompt template
+  monitor_existence.md       # Stage-1 verification sub-agent prompt — PR/issue/URL existence + verbatim quotes
+  monitor_scope.md           # Stage-2 verification sub-agent prompt — chip-vendor scope strictness
+  monitor_feature.md         # Stage-3 verification sub-agent prompt — feature-strictness audit
 templates/
   REPORT_template.md         # synthesized report skeleton
 ```
@@ -108,7 +117,7 @@ templates/
 - **Sub-agents do not spawn further sub-agents** — orchestration stays flat in the main agent.
 - **Verify before write** — every PR / issue / URL is `gh`-checked or `WebFetch`-checked by the producing researcher before the JSON file is written. The monitor re-samples but does not substitute.
 - **Verbatim source quotes** — perf-number entries store an exact quote from the cited source; the monitor diffs against the live page.
-- **Scope audit trail** — items dropped for being out-of-scope are logged in `verification.md` and surfaced in the report's Verification Footer.
+- **Scope audit trail** — items dropped for being out-of-scope are logged in `verification_scope.md` (Stage 2) and surfaced in the report's Verification Footer.
 
 ## License
 

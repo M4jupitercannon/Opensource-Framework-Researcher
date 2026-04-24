@@ -22,6 +22,7 @@ Stage 2 does NOT re-do existence sampling — Stage 1 already did. If you find y
 > - **Chip / framework / feature** (for context): `{chip}` / `{framework}` / `{feature}`
 >
 > ### Procedure
+> 0. **Read the Stage-1 verdict.** Open `{out_dir}/verification_existence.md` and copy its verdict line (e.g. `GREEN` / `YELLOW`) into the `Stage-1 verdict (existence)` line of your output report header. This is the only time you read that file — its content is otherwise authoritative input you do not re-litigate.
 > 1. **Re-confirm `_meta`.** Re-read each file's `_meta` block to confirm nothing changed during Stage-1 must-fix application. If a previously-validated field is now missing, flag and stop (Stage 1 must be re-run).
 > 2. **Scope strictness — the core of Stage 2.** Cross-reference each entry's hardware (SM / CDNA / XPU / TPU codes, SKUs, datacenter-vs-consumer indicators) against `scope.json.in_scope` and `scope.json.out_of_scope_drops`. Apply the strictest reading:
 >    - If an entry cites ONLY out-of-scope hardware → **out-of-scope drop**.
@@ -63,7 +64,11 @@ Stage 2 does NOT re-do existence sampling — Stage 1 already did. If you find y
 >
 > ### Verdict rules
 > - **GREEN** — no out-of-scope drops, no scope-mixing nits, ≤2 scope-ambiguity nits. Stage 3 may proceed without intervention.
-> - **YELLOW** — ≥1 out-of-scope drops OR ≥1 scope-mixing nits OR ≥3 scope-ambiguity nits. The synthesizer applies the must-fixes to the topic JSONs (drop entries, narrow hardware lists, annotate ambiguous families) and records each drop in `_meta.dropped_out_of_scope`. Stage 3 then proceeds.
+> - **YELLOW** — ≥1 out-of-scope drops OR ≥1 scope-mixing nits OR ≥3 scope-ambiguity nits. The synthesizer applies the must-fixes to the topic JSONs (drop entries, narrow hardware lists, annotate ambiguous families) and records each fix in the appropriate `_meta` audit field:
+>    - **drops** → `_meta.dropped_out_of_scope` with `{ref, reason}`
+>    - **scope-mixing narrows (entry kept, hardware list trimmed)** → `_meta.scope_mixing_narrowed` with `{ref, kept_as, dropped_mention}`
+>    - **scope-ambiguity annotations (entry kept, family clarified)** → `_meta.scope_ambiguity_annotated` with `{ref, family, in_scope_members}`
+>    Stage 3 then proceeds.
 > - **RED** — only fires if a single topic file would lose the **majority** of its entries to scope filtering (signals the researcher mis-scoped the whole topic). The orchestrator should re-spawn that researcher with a tightened scope reminder and re-run Stages 1 + 2.
 >
 > ### What to return

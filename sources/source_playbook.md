@@ -93,7 +93,7 @@ Use `WebFetch` against the results page or `gh` against the `mlcommons/inference
 
 **When**: cross-checking framework-claimed perf numbers, finding alternative configurations, or sanity-checking absolute throughput.
 
-**Source**: `https://github.com/SemiAnalysisAI/InferenceX`. Per memory, configs live under `.github/configs/{vendor}-master.yaml` (e.g. `nvidia-master.yaml`, `amd-master.yaml`).
+**Source**: `https://github.com/SemiAnalysisAI/InferenceX`. Configs live under `.github/configs/{vendor}-master.yaml` (e.g. `nvidia-master.yaml`, `amd-master.yaml`).
 
 Recipes:
 ```bash

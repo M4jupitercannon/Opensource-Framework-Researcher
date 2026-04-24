@@ -24,6 +24,8 @@ This is the audit that prevents the report from drifting into adjacent areas (e.
 >   {feature_strictness_criteria}
 >   ```
 >
+> **If the fenced code block above is empty or contains only whitespace, use the Default strictness test below.** Otherwise, use the criteria provided.
+>
 > ### Default strictness test (use only if the orchestrator did not inject criteria)
 > An entry passes feature-strictness if AT LEAST ONE is true:
 > 1. **Touches a `{feature}`-only code path** — module, kernel, dispatcher, scheduler, config flag, or RFC section that exists *because of* `{feature}`.
@@ -45,7 +47,7 @@ This is the audit that prevents the report from drifting into adjacent areas (e.
 >    - For perf rows, check whether the cited number is reported with `{feature}` ON vs OFF, or only as an aggregate.
 > 4. Apply the strictness test from the criteria block (or default test) to every entry. Classify each as one of:
 >    - **KEEP** — passes strictness; cite which criterion (1–6 or custom).
->    - **RECATEGORIZE** — touches `{feature}`-adjacent area but its primary purpose is a different topic (e.g. a generic MoE PR mis-filed under an EP report). Recommend a target topic file and a `_meta.recategorized_as_*` audit-trail tag.
+>    - **RECATEGORIZE** — touches `{feature}`-adjacent area but its primary purpose is a different topic (e.g. a generic MoE PR mis-filed under an EP report). Recommend a target topic file and a `_meta.recategorized_as_other` audit-trail tag.
 >    - **DROP** — fails strictness entirely. Recommend deletion from the topic; preserve in `_meta.removed_by_strictness_audit` with `{ref, original_bucket, reason}`.
 > 5. For cross-listed entries (same PR/issue cited under multiple topics), choose the **canonical bucket** (the topic where the entry is most strictly feature-relevant) and recommend the others be removed with `also_listed_under_dropped` notes.
 >
@@ -53,7 +55,7 @@ This is the audit that prevents the report from drifting into adjacent areas (e.
 > Write `{out_dir}/verification_feature.md` with this structure:
 >
 > ```
-> # Verification Report — Stage 2 (feature-strictness)
+> # Verification Report — Stage 3 (feature-strictness)
 >
 > Verified <UTC date> by feature-research monitor_feature against {framework_repo}.
 > Feature audited: {feature}.

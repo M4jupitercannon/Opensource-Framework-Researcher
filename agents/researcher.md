@@ -47,6 +47,11 @@ The main agent injects this template into a `general-purpose` Agent call, substi
 >        "sources_used": ["..."],
 >        "verified_at": "<UTC ISO-8601>",
 >        "dropped_out_of_scope": [],
+>        "scope_mixing_narrowed": [],
+>        "scope_ambiguity_annotated": [],
+>        "removed_by_strictness_audit": [],
+>        "recategorized_as_other": [],
+>        "dedup_canonical": [],
 >        "verifications_run": <int>
 >      },
 >      "entries": [ /* per the entry schema */ ]

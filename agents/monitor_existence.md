@@ -20,13 +20,19 @@ This stage is the hallucination defense. A failure here means a researcher fabri
 > - **Chip / framework / feature** (for context only): `{chip}` / `{framework}` / `{feature}`
 >
 > ### Procedure
-> 1. **`_meta` schema check.** List every `*.json` file in `{out_dir}/topics/`. Read each file and confirm `_meta.scope`, `_meta.sources_used`, `_meta.in_scope`, `_meta.framework_repo`, `_meta.verified_at` are present. A missing field counts as **RED**.
-> 2. **Reference existence sampling.** Collect every distinct PR / issue / RFC number cited across all files (deduplicate). Sample at least **80 % of PR refs** and **90 % of issue/RFC refs**. For each sampled ref, run `gh pr view` or `gh issue view` against `{framework_repo}` and confirm:
+> 1. **`_meta` schema check.** List every `*.json` file in `{out_dir}/topics/`. Read each file and confirm the following `_meta` fields are present — these are required by `topics/topic_json_schema.md` for every topic file. A missing field counts as **RED**.
+>    - **Required on every topic file** (may be empty `[]` / `0` where indicated):
+>      - **Provenance / scope:** `_meta.scope`, `_meta.in_scope`, `_meta.framework_repo`, `_meta.verified_at`, `_meta.sources_used`, `_meta.verifications_run` (integer, may be `0`).
+>      - **Stage-2 (scope) audit fields** (may be `[]`): `_meta.dropped_out_of_scope`, `_meta.scope_mixing_narrowed`, `_meta.scope_ambiguity_annotated`.
+>      - **Stage-3 (feature-strictness) audit fields** (may be `[]`): `_meta.removed_by_strictness_audit`, `_meta.recategorized_as_other`, `_meta.dedup_canonical`.
+>    - **Additionally required on `external_repo_dependencies.json`**: `_meta.dropped_unverifiable` (may be `[]`).
+> 2. **Reference existence sampling.** Collect every distinct PR / issue / RFC number cited across all files **except `external_repo_dependencies.json`** (deduplicate). Sample at least **80 % of PR refs** and **90 % of issue/RFC refs**. For each sampled ref, run `gh pr view` or `gh issue view` against `{framework_repo}` and confirm:
 >    - the number exists,
 >    - the title roughly matches the file's claim (paraphrasing OK; wholesale invention is a hallucination),
 >    - the state matches (open/closed/merged/draft).
 >    - If the number does not exist, or returns a wildly different title, classify as **hallucination**.
-> 3. **Verbatim source-quote re-fetch.** For every URL cited in any field marked verbatim — e.g. `perf_numbers.json` `source_quote`, `roadmap.json` `rfc_quote`, etc. — `WebFetch` the URL and confirm the quoted passage appears VERBATIM on the page. Drift (paraphrased, comma-shifted, decimal-rounded) goes under **Verbatim-quote drift** (a YELLOW nit, not a hallucination).
+>    - **Why exclude `external_repo_dependencies.json`?** Its PR/issue numbers point to EXTERNAL repos (e.g. `deepseek-ai/DeepEP`, `NVIDIA/cutlass`), not `{framework_repo}`. The Phase-1b analyzer is the authoritative verifier for external-repo refs (it ran `gh pr/issue view` against each external repo before write and recorded any drops in `_meta.dropped_unverifiable`); monitor_existence's sampling is bounded to framework-repo refs by design. Re-verifying external refs against `{framework_repo}` would falsely flag valid refs as hallucinations or coincidentally validate the wrong PR. This exception is documented in `SKILL.md` hard rule 3.
+> 3. **Verbatim source-quote re-fetch.** For every URL cited in any field marked verbatim — including `perf_numbers.json` `entries[*].source_quote` and `roadmap.json` `roadmap_items[*].description_verbatim` — `WebFetch` the URL and confirm the quoted passage appears VERBATIM on the page. Drift (paraphrased, comma-shifted, decimal-rounded) goes under **Verbatim-quote drift** (a YELLOW nit, not a hallucination).
 > 4. **Internal-consistency cross-check.** Look for the same PR/issue cited differently across files (OPEN in one, MERGED in another; date-of-merge mismatch; conflicting titles). List under **Internal-consistency conflicts**. These usually mean one file is stale rather than fabricated.
 >
 > ### Output

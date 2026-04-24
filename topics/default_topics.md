@@ -1,6 +1,6 @@
 # Default research topics
 
-Five topics, generalized from `~/vllm_research/v2/`. Each topic has a stable name (used as the JSON filename and as the report `##` heading), a prompt template the main agent injects into the researcher sub-agent, and an entry schema.
+Six topics, generalized from `~/vllm_research/v2/`. Each topic has a stable name (used as the JSON filename and as the report `##` heading), a prompt template the main agent injects into the researcher sub-agent, and an entry schema.
 
 The main agent passes one topic per researcher sub-agent. To override, the user supplies a `topics:` argument that is either a subset of these names or a list of custom topic objects of the same shape.
 
@@ -22,7 +22,7 @@ Section heading rule: when the report is synthesized, the `report_heading` field
       {"number": 12345, "title": "string", "merged_at": "ISO-8601", "verified_state": "MERGED"}
     ],
     "status": "string — e.g. 'production-ready', 'experimental', 'CI-tested but off by default'",
-    "hardware_supported": ["SM89", "SM90", "..."]   // entries from scope.in_scope
+    "hardware_supported": ["SM90", "SM100", "..."]   // entries from scope.in_scope
   }
   ```
 
@@ -33,6 +33,7 @@ Section heading rule: when the report is synthesized, the `report_heading` field
 - **report_heading**: `Open Issues`
 - **prompt**:
   > For each subfeature of `{feature}` in `{framework}`, find currently OPEN issues in `{framework_repo}` that are relevant on `{chip}` ({scope_statement}). Use `gh issue list --repo {framework_repo} --state open --search '{search-terms}' --json number,title,labels,createdAt,state`. Verify each one is actually open. Drop issues whose hardware is out of scope (record drops in `_meta.dropped_out_of_scope`). Classify each issue as `ep-direct` / `ep-tangential` (or framework analog), and assign a severity (`critical` / `major` / `minor`). Group issues per subfeature; the same issue may appear under multiple subfeatures.
+- **subfeature-name rule (cross-file consistency)**: `entries[*].subfeature` MUST match a canonical name from `completed_subfeatures.json` `entries[*].name` **verbatim** (same case, same spelling). The Phase-1b analyzer and the report's external-repo derivation rule both rely on this exact-match contract. If a Phase-1a researcher cannot map an issue to an existing canonical subfeature, it should either (a) defer the entry until `completed_subfeatures.json` lists the appropriate name, or (b) bucket it under a single `"(cross-cutting)"` literal — never invent a new subfeature name here.
 - **entry schema** (one entry per subfeature):
   ```jsonc
   {
@@ -125,6 +126,38 @@ Section heading rule: when the report is synthesized, the `report_heading` field
     "prs": [{"number": 1, "title": "string", "verified_state": "MERGED|OPEN"}],
     "hardware": ["SM90", "SM100", "..."],
     "notes": "string — performance characteristic, alternatives, known issues"
+  }
+  ```
+
+---
+
+## 6. `external_repo_dependencies`
+
+- **report_heading**: `External Repo Dependencies`
+- **prerequisites**: `completed_subfeatures.json`, `kernels_or_components.json`, `open_issues.json` must already exist on disk. This topic is produced by an analyzer sub-agent (`agents/analyzer_external_repos.md`), not a generic researcher — see SKILL.md Phase 1b.
+- **note**: This topic is produced by the Phase-1b analyzer; the prompt template below is informational. The authoritative procedure lives in `agents/analyzer_external_repos.md` and is what the orchestrator actually injects.
+- **prompt** (template, `{chip}` / `{framework}` / `{feature}` / `{framework_repo}` / `{scope_statement}` substituted):
+  > For each completed subfeature of `{feature}` in `{framework}` on `{chip}` ({scope_statement}), identify the **external open-source repositories** that subfeature depends on or contributes back to (e.g. kernel libraries like `deepseek-ai/DeepGEMM`, `deepseek-ai/DeepEP`, `flashinfer-ai/flashinfer`, `ROCm/mori`, `NVIDIA/cutlass`, `NVIDIA/nccl`, `NVIDIA/nvshmem`). You will be given the already-produced `completed_subfeatures.json`, `kernels_or_components.json`, and `open_issues.json` as inputs — read them with `Read`. Discover external-repo names by (a) re-fetching each framework PR body via `gh pr view {N} --repo {framework_repo} --json body,files` and scanning for repo slugs, submodule changes, and `requirements*` bumps; (b) reading the `library` field of each kernel under `kernels_or_components.json`; (c) scanning open-issue bodies in `open_issues.json` for outbound references. For every external-repo PR/issue ref you find, run `gh pr view {N} --repo {ext_org/ext_repo}` or `gh issue view {N} --repo {ext_org/ext_repo}` to verify it exists, get its title, and confirm its state. Drop any ref that fails verification. Group results by subfeature (entry per subfeature), with sub-grouping by external repo.
+- **entry schema** (one entry per subfeature; subfeature names inherited verbatim from `completed_subfeatures.json`):
+  ```jsonc
+  {
+    "subfeature": "string — must match a name from completed_subfeatures.json",
+    "external_repos": [
+      {
+        "repo": "string — org/repo slug, e.g. 'deepseek-ai/DeepEP'",
+        "library_name": "string — short name as cited in framework PR bodies, e.g. 'DeepEP'",
+        "pr_count": 6,
+        "issue_count": 5,
+        "prs": [
+          {"number": 42, "title": "string", "verified_state": "MERGED|OPEN|CLOSED"}
+        ],
+        "issues": [
+          {"number": 17, "title": "string", "verified_state": "OPEN|CLOSED"}
+        ],
+        "discovered_via": ["framework-pr-body:#12345", "kernels_or_components:DeepEP", "open_issues:#67890"]
+      }
+    ],
+    "totals": { "external_repo_count": 2, "pr_count": 9, "issue_count": 10 }
   }
   ```
 
