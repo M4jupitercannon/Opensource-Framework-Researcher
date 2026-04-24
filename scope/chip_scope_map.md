@@ -13,15 +13,14 @@ If the user passes `scope_override`, it replaces the derived spec; the `default_
 ## NVIDIA
 
 - **aliases**: `NVIDIA`, `nv`, `nvidia`, `cuda`
-- **in_scope**: `SM90` (Hopper H100/H200/H20, datacenter), `SM100` (Blackwell datacenter B100/B200/GB200), `SM120` (Blackwell — consumer GeForce RTX 50-series **and** workstation RTX PRO 6000 Blackwell)
+- **in_scope**: `SM90` (Hopper datacenter H100/H200/H20/GH200), `SM100` (Blackwell datacenter B100/B200/GB200), `SM103` (Blackwell Ultra datacenter B300/GB300), `SM120` (Blackwell — consumer GeForce RTX 50-series **and** workstation RTX PRO 6000 Blackwell), `SM121` (Blackwell DGX-Spark desktop AI workstation, GB10B)
 - **out_of_scope_drops**:
   - `SM80` — Ampere A100 (prior generation)
-  - `SM86` — Ampere consumer/workstation (RTX 30-series, A6000)
+  - `SM86` — Ampere consumer/workstation (RTX 30-series, A6000) — prior generation
   - `SM89` — Ada Lovelace (L40/L40S datacenter, RTX 40-series consumer) — prior generation; user-scoped to Hopper+Blackwell only
-  - `SM103` — Blackwell B300 (not yet GA)
-  - `SM121` — DGX-Spark
+  - `SM110` — Jetson AGX Thor / DRIVE AGX Thor (Blackwell-based embedded/automotive) — outside "datacenter or consumer GPU" framing
   - All ROCm/AMD/MI300 references — different vendor
-- **default_scope_statement**: `NVIDIA Hopper and Blackwell GPUs (datacenter and consumer) — Hopper SM90 (H100/H200/H20), Blackwell SM100 (B100/B200/GB200), Blackwell SM120 (GeForce RTX 50-series and RTX PRO 6000 Blackwell). Prior generations (Ampere SM80/SM86, Ada SM89) and not-yet-GA / out-of-band SKUs (B300/SM103, DGX-Spark/SM121) are excluded; specific dropped items are listed in the Verification Footer.`
+- **default_scope_statement**: `NVIDIA Hopper and Blackwell GPUs (datacenter and consumer) — Hopper SM90 (H100/H200/H20/GH200), Blackwell SM100 (B100/B200/GB200), Blackwell Ultra SM103 (B300/GB300), Blackwell SM120 (GeForce RTX 50-series and RTX PRO 6000 Blackwell), Blackwell SM121 (DGX-Spark/GB10B). Prior generations (Ampere SM80/SM86, Ada SM89) and embedded/automotive Blackwell (Jetson/DRIVE AGX Thor SM110) are excluded; specific dropped items are listed in the Verification Footer.`
 
 ---
 
