@@ -28,15 +28,16 @@ If the user passes `scope_override`, it replaces the derived spec; the `default_
 ## AMD
 
 - **aliases**: `AMD`, `amd`, `rocm`, `instinct`, `radeon`
-- **in_scope**: `CDNA3` (MI300X, MI300A, MI325X, datacenter), `CDNA4` (MI355X, MI350X, datacenter), `RDNA3` (consumer/workstation Radeon RX 7000 / W7000), `RDNA4` (consumer/workstation Radeon RX 9000)
+- **in_scope**: `CDNA3` (MI300X, MI300A, MI325X, datacenter), `CDNA4` (MI355X, MI350X, datacenter), `RDNA3` (consumer Radeon RX 7000, workstation Radeon PRO W7000), `RDNA4` (consumer Radeon RX 9000, workstation Radeon AI PRO R9700/R9600D)
 - **out_of_scope_drops**:
-  - `CDNA2` — MI250/MI250X (prior datacenter generation, limited FP8)
+  - `CDNA2` — MI210/MI250/MI250X (prior datacenter generation, limited FP8)
   - `CDNA1` — MI100
   - `RDNA2` — Radeon RX 6000 / W6000 (prior consumer generation)
   - `RDNA1` — Radeon RX 5000
+  - `RDNA3.5` — Strix Point/Halo integrated APU graphics (not a discrete AI accelerator)
   - GCN-era and older
   - All NVIDIA/CUDA-only references
-- **default_scope_statement**: `AMD CDNA3/CDNA4 Instinct datacenter accelerators and RDNA3/RDNA4 consumer/workstation Radeon — CDNA3 (MI300X/MI300A/MI325X), CDNA4 (MI355X/MI350X), RDNA3 (RX 7000 / W7000), RDNA4 (RX 9000). Prior generations (CDNA1/CDNA2 MI100/MI250, RDNA1/RDNA2 RX 5000/6000) and GCN-era are excluded; specific dropped items are listed in the Verification Footer.`
+- **default_scope_statement**: `AMD CDNA3/CDNA4 Instinct datacenter accelerators and RDNA3/RDNA4 consumer/workstation Radeon — CDNA3 (MI300X/MI300A/MI325X), CDNA4 (MI355X/MI350X), RDNA3 (RX 7000, PRO W7000), RDNA4 (RX 9000, AI PRO R9700/R9600D). Prior generations (CDNA1/CDNA2 MI100/MI210/MI250, RDNA1/RDNA2 RX 5000/6000), RDNA3.5 integrated APUs, and GCN-era are excluded; specific dropped items are listed in the Verification Footer.`
 
 ---
 
