@@ -32,7 +32,7 @@ Multi-agent investigation of a single feature (e.g. Expert Parallelism, Prefill-
 3. **Verify before write.** Every PR / issue / URL claim in any topic JSON MUST be live-verified by the producing researcher (via `gh` / `WebFetch`) before the JSON is written. The monitor re-samples but does not substitute.
 4. **No q1/q2/q3 labels.** Section headings in the synthesized report use the topic names directly (e.g. `## Completed Subfeatures`, `## Open Issues`, `## Roadmap`).
 5. **Required JSON metadata.** Every topic JSON file has a top-level `_meta` block with at least: `scope`, `sources_used`, `verified_at`, `framework_repo`. See `templates/` notes (schema lives in `topics/topic_json_schema.md`).
-6. **Scope audit trail.** Items dropped for being out-of-scope are logged in `verification.md` and surfaced in the report's Verification Footer — not silently discarded.
+6. **Three-stage audit trail.** Stage-1 (`monitor_existence`) catches hallucinated PRs/issues/URLs and verbatim-quote drift; failures here force a researcher re-spawn. Stage-2 (`monitor_scope`) drops out-of-scope items and logs them in `verification_scope.md` plus `_meta.dropped_out_of_scope`. Stage-3 (`monitor_feature`) drops/recategorizes items that fail feature-strictness and logs them in `verification_feature.md` plus `_meta.{removed_by_strictness_audit, recategorized_as_*, dedup_canonical}`. All three sets surface in the report's Verification Footer — nothing is silently discarded.
 
 ## Workflow
 
@@ -50,26 +50,44 @@ Multi-agent investigation of a single feature (e.g. Expert Parallelism, Prefill-
 3. Wait for all researchers to return. Each returns: file path written, entry count, count of `gh`/`WebFetch` verifications performed.
 4. If any researcher reports an error, surface it and stop before Phase 2.
 
-### Phase 2 — Verification (serial)
+### Phase 2 — Three-stage verification (serial)
 
-1. Spawn one `monitor` sub-agent (prompt from `agents/monitor.md`) with `out_dir/topics/` and `out_dir/scope.json` as inputs.
-2. Wait for `out_dir/verification.md` to be written and the monitor's verdict (`GREEN` / `YELLOW` / `RED` + must-fix list).
-3. If verdict is `RED`: re-spawn the relevant researcher(s) to redo their topics, then re-run the monitor. Loop at most twice.
+Verification runs as **three independent monitor sub-agents in series**. Stage 1 audits existence (do the cited PRs/issues/URLs really exist?); Stage 2 audits chip-vendor scope; Stage 3 audits feature-strictness. Each stage writes its own `verification_*.md`. A later stage runs only after the prior stage reaches GREEN/YELLOW.
+
+**Stage 2.1 — Existence & facts (`monitor_existence`)**
+1. Spawn one `monitor_existence` sub-agent (prompt from `agents/monitor_existence.md`) with `out_dir/topics/` as input. No scope.json needed — this stage is purely "does this exist?".
+2. Wait for `out_dir/verification_existence.md` and the verdict (`GREEN` / `YELLOW` / `RED` + must-fix list).
+3. If `RED` (hallucinated PR/issue/URL or missing `_meta` fields): re-spawn the relevant researcher(s), then re-run Stage 2.1. Loop at most twice. Do NOT advance to Stage 2.2.
+4. If `YELLOW` (verbatim-quote drift or internal-consistency conflict): the main agent applies the must-fixes to the topic JSONs (correct quotes, reconcile state mismatches) before Stage 2.2.
+
+**Stage 2.2 — Chip-vendor scope (`monitor_scope`)**
+1. Spawn one `monitor_scope` sub-agent (prompt from `agents/monitor_scope.md`) with `out_dir/topics/`, `out_dir/scope.json`, and `out_dir/verification_existence.md` as inputs.
+2. Wait for `out_dir/verification_scope.md` and the verdict (`GREEN` / `YELLOW` / `RED` + must-fix list).
+3. If `RED` (a single topic loses majority of entries to scope filtering): re-spawn that researcher with a tightened scope reminder and re-run Stages 2.1 + 2.2. Loop at most twice. Do NOT advance to Stage 2.3.
+4. If `YELLOW` (out-of-scope drops, scope-mixing, or scope-ambiguity nits): the main agent applies the must-fixes to the topic JSONs (drop entries, narrow hardware lists) before Stage 2.3. Audit-trail entries go into `_meta.dropped_out_of_scope`.
+
+**Stage 2.3 — Feature strictness (`monitor_feature`)**
+1. Spawn one `monitor_feature` sub-agent (prompt from `agents/monitor_feature.md`) with `out_dir/topics/`, `out_dir/scope.json`, `out_dir/verification_existence.md`, and `out_dir/verification_scope.md`. The main agent injects feature-specific strictness criteria via `{feature_strictness_criteria}` if it has them; otherwise the monitor falls back to its default 6-criterion test.
+2. Wait for `out_dir/verification_feature.md` and the verdict (`GREEN` / `AMBER` / `RED`).
+3. If `RED` (a topic loses majority of entries or a headline subfeature itself fails strictness): re-spawn the relevant researcher(s) with a tightened `topic_prompt` and re-run all three stages. Loop at most twice.
+4. If `AMBER` (recategorize / drop recommendations): the main agent applies the punch-list to the topic JSONs (move entries to canonical buckets, delete entries while preserving them in `_meta.removed_by_strictness_audit` / `_meta.recategorized_as_*` for the audit trail) before Phase 3.
+
+**Re-spawn budget across the whole phase: at most 2 rounds total.** If the second round still produces a RED verdict at any stage, escalate to the user rather than looping further.
 
 ### Phase 3 — Synthesis (main agent)
 
-1. Apply YELLOW/RED must-fixes (drop out-of-scope items, reconcile internal conflicts) by editing the topic JSONs directly.
+1. By the time Phase 3 starts, the must-fix lists from all three stages (`monitor_existence`, `monitor_scope`, `monitor_feature`) have already been applied to the topic JSONs in Phase 2. Re-confirm the JSONs match the punch-lists; spot-fix anything missed.
 2. Read `templates/REPORT_template.md` and populate it with the per-topic JSON contents:
    - Title: `# {framework} {feature} on {chip} — Highlighted Report`
-   - Header: date + scope statement (verbatim from `scope.json`) + verification verdict.
+   - Header: date + scope statement (verbatim from `scope.json`) + **all three** verification verdicts (existence, scope, feature-strictness).
    - **At-a-Glance Dashboard** table — one row per topic with count + headline insight.
    - One `##` section per topic with a primary table (one row per entity).
-   - **Verification Footer** — dropped items, internal conflict reconciliations, link to `verification.md`.
+   - **Verification Footer** — verbatim-quote / internal-conflict fixes from Stage 1, scope drops from Stage 2, recategorize/drop punch-list from Stage 3, and links to all three `verification_*.md` files.
 3. Write `out_dir/REPORT.md`.
 
 ### Phase 4 — Hand-off
 
-Print a single short paragraph naming `out_dir/REPORT.md`, `out_dir/verification.md`, and the per-topic JSON files. Note that the JSONs are the dashboard-ready inputs (stable schema across runs).
+Print a single short paragraph naming `out_dir/REPORT.md`, all three of `out_dir/verification_existence.md`, `out_dir/verification_scope.md`, `out_dir/verification_feature.md`, and the per-topic JSON files. Note that the JSONs are the dashboard-ready inputs (stable schema across runs) and that every drop/recategorize is recorded in `_meta` for full reversibility.
 
 ## Defaults & framework→repo map
 
@@ -91,5 +109,7 @@ If the user names a framework not in the map and does not pass `gh_repo_override
 | `scope/chip_scope_map.md` | Vendor → in/out scope SM/CDNA/XPU codes and scope statements |
 | `sources/source_playbook.md` | gh / WebFetch / WebSearch / MLPerf / InferenceX recipes |
 | `agents/researcher.md` | Per-topic researcher sub-agent prompt template |
-| `agents/monitor.md` | Verification sub-agent prompt template |
+| `agents/monitor_existence.md` | Stage-1 verification sub-agent prompt — every cited PR/issue/URL must really exist on `{framework_repo}`; verbatim quotes must match their source |
+| `agents/monitor_scope.md` | Stage-2 verification sub-agent prompt — chip-vendor scope strictness (every entry must target in-scope hardware) |
+| `agents/monitor_feature.md` | Stage-3 verification sub-agent prompt — feature-strictness audit (every entry must directly influence `{feature}`'s functionality or performance) |
 | `templates/REPORT_template.md` | Synthesized report skeleton |
