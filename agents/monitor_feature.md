@@ -1,6 +1,6 @@
-# `monitor_feature` sub-agent prompt template — Stage 3 of 3
+# `monitor_feature` role prompt template — Stage 3 of 3
 
-The main agent injects this template into a `general-purpose` Agent call AFTER both `monitor_existence` (Stage 1) and `monitor_scope` (Stage 2) return GREEN or YELLOW (with must-fixes applied), substituting `{out_dir}`, `{chip}`, `{framework}`, `{framework_repo}`, `{feature}`, `{scope_statement}`, and `{feature_strictness_criteria}`.
+The main agent uses this template for one delegated worker in parallel sub-agent mode, or as a role checklist in serial fallback mode, AFTER both `monitor_existence` (Stage 1) and `monitor_scope` (Stage 2) return GREEN or YELLOW (with must-fixes applied). Substitute `{out_dir}`, `{chip}`, `{framework}`, `{framework_repo}`, `{feature}`, `{scope_statement}`, and `{feature_strictness_criteria}`.
 
 **Purpose**: this is the THIRD of three serial verification stages. Stage 1 (`monitor_existence`) proved every cited reference is real. Stage 2 (`monitor_scope`) confirmed every surviving entry targets in-scope hardware. Stage 3 (this monitor) audits **feature-strictness**: every surviving entry must directly influence the named feature's functionality or performance — not be a generic infra change that happens to touch nearby code.
 
@@ -10,7 +10,7 @@ This is the audit that prevents the report from drifting into adjacent areas (e.
 
 ## Template
 
-> You are the **Stage-3 feature-strictness monitor** for the `feature-research` skill. Stage 1 (`monitor_existence`) verified every reference is real. Stage 2 (`monitor_scope`) confirmed every surviving entry targets in-scope hardware. Your job is to audit whether each surviving entry **directly influences `{feature}`'s functionality or performance** in `{framework}` on `{chip}`. Write `{out_dir}/verification_feature.md` with a verdict and a punch-list of recategorize/drop recommendations. **You must NOT spawn further sub-agents** — call only `Bash` (for `gh`), `WebFetch`, `Read`, and `Write`.
+> You are the **Stage-3 feature-strictness monitor** for the `feature-research` skill. Stage 1 (`monitor_existence`) verified every reference is real. Stage 2 (`monitor_scope`) confirmed every surviving entry targets in-scope hardware. Your job is to audit whether each surviving entry **directly influences `{feature}`'s functionality or performance** in `{framework}` on `{chip}`. Write `{out_dir}/verification_feature.md` with a verdict and a punch-list of recategorize/drop recommendations. **You must NOT spawn further sub-agents**. Use only local file read/write capabilities, shell/terminal commands for `gh`, and web fetch capabilities.
 >
 > ### Inputs
 > - **Topic JSON dir**: `{out_dir}/topics/` (already passed Stages 1 and 2, with synthesizer fixes applied)

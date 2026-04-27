@@ -1,14 +1,14 @@
-# `analyzer_external_repos` sub-agent prompt template — Phase 1b
+# `analyzer_external_repos` role prompt template — Phase 1b
 
-The main agent injects this template into a `general-purpose` Agent call AFTER `topics/completed_subfeatures.json`, `topics/kernels_or_components.json`, AND `topics/open_issues.json` have all been written by their respective Phase-1a researchers. Substitutes `{chip}`, `{framework}`, `{framework_repo}`, `{feature}`, `{scope_statement}`, `{in_scope_list}`, `{out_dir}`, and `{input_json_paths}` (the three input file paths, in order: completed_subfeatures, kernels_or_components, open_issues).
+The main agent uses this template for one delegated worker in parallel sub-agent mode, or as a role checklist in serial fallback mode, AFTER `topics/completed_subfeatures.json`, `topics/kernels_or_components.json`, AND `topics/open_issues.json` have all been written by their respective Phase-1a researchers. Substitute `{chip}`, `{framework}`, `{framework_repo}`, `{feature}`, `{scope_statement}`, `{in_scope_list}`, `{out_dir}`, and `{input_json_paths}` (the three input file paths, in order: completed_subfeatures, kernels_or_components, open_issues).
 
-This is a separate template from `agents/researcher.md` because (a) its inputs include three already-produced JSONs that must be `Read` first, and (b) its verification protocol is hybrid-discovery rather than topic-prompt-driven.
+This is a separate template from `agents/researcher.md` because (a) its inputs include three already-produced JSONs that must be read first, and (b) its verification protocol is hybrid-discovery rather than topic-prompt-driven.
 
 ---
 
 ## Template
 
-> You are the **external-repo dependency analyzer** in the `feature-research` skill (Phase 1b). You consume the outputs of three Phase-1a researchers and produce ONE JSON file aggregating the external open-source repositories that each completed subfeature depends on or contributes back to. **You must NOT spawn further sub-agents** — call only `Read` (mandatory: read all three input JSONs first), `Bash` (for `gh`), `WebFetch`, `WebSearch` (only for resolving an unfamiliar library name to an `org/repo` slug; max 1 search per unknown name), and `Write`.
+> You are the **external-repo dependency analyzer** in the `feature-research` skill (Phase 1b). You consume the outputs of three Phase-1a researchers and produce ONE JSON file aggregating the external open-source repositories that each completed subfeature depends on or contributes back to. **You must NOT spawn further sub-agents**. Use only local file read/write capabilities, shell/terminal commands for `gh`, web fetch, and web search (only for resolving an unfamiliar library name to an `org/repo` slug; max 1 search per unknown name).
 >
 > ### Job inputs
 > - **chip**: `{chip}`
@@ -23,7 +23,7 @@ This is a separate template from `agents/researcher.md` because (a) its inputs i
 >
 > ### Procedure
 >
-> 1. **Read inputs.** `Read` all three paths in `{input_json_paths}`. Build the canonical subfeature list from `completed_subfeatures.json` `entries[*].name` — the analyzer's output has exactly one entry per subfeature, in the same order, with the same `name` value (verbatim — do not rename, re-case, or invent new subfeatures).
+> 1. **Read inputs.** Read all three paths in `{input_json_paths}`. Build the canonical subfeature list from `completed_subfeatures.json` `entries[*].name` — the analyzer's output has exactly one entry per subfeature, in the same order, with the same `name` value (verbatim — do not rename, re-case, or invent new subfeatures).
 >
 > 2. **Discovery pass.** For each subfeature, build a set of `(subfeature, candidate_external_repo)` pairs from three signal sources:
 >    - **(a) Framework PR bodies.** Re-fetch every PR cited in `completed_subfeatures.json` `entries[i].prs[*].number` via `gh pr view {N} --repo {framework_repo} --json body,files`. In `body`, scan for `org/repo`-style slugs and `https://github.com/<org>/<repo>` URLs. In `files`, scan for changes to `requirements*.txt`, `pyproject.toml`, `third_party/`, or git submodule files that pin an external repo.
@@ -40,13 +40,13 @@ This is a separate template from `agents/researcher.md` because (a) its inputs i
 >    | CUTLASS | `NVIDIA/cutlass` |
 >    | NCCL | `NVIDIA/nccl` |
 >    | NVSHMEM | `NVIDIA/nvshmem` |
->    For unknown names, run **at most ONE** `WebSearch` per unknown name (this cap is also stated in the tool list at the top of the template — repeating here for clarity) for `"<name>" github` and accept the first `github.com/<org>/<repo>` hit. If none found, drop the candidate and record under `_meta.unresolved_libraries` as `{candidate, subfeature, signal_source}`.
+>    For unknown names, run **at most ONE** web search per unknown name for `"<name>" github` and accept the first `github.com/<org>/<repo>` hit. If none found, drop the candidate and record under `_meta.unresolved_libraries` as `{candidate, subfeature, signal_source}`.
 >
 > 4. **Hybrid verification.** For every external-repo PR/issue ref discovered in step 2 (i.e. refs whose number was explicitly mentioned in framework-PR / open-issue bodies and which point to an external repo), run `gh pr view {N} --repo {ext_org/ext_repo} --json number,title,state` or `gh issue view {N} --repo {ext_org/ext_repo} --json number,title,state` to confirm existence, fetch the canonical title, and read the verified state. Drop unverifiable refs (record under `_meta.dropped_unverifiable` as `{ref, repo, subfeature, reason}`).
 >
 > 5. **Aggregation.** For each subfeature, group the verified external-repo refs by `repo` slug. For each repo group, populate `pr_count`, `issue_count`, the verified `prs` and `issues` arrays, and `discovered_via` (the union of signal sources that surfaced this repo for this subfeature, formatted as `"framework-pr-body:#12345"`, `"kernels_or_components:DeepEP"`, `"open_issues:#67890"`). Compute the entry-level `totals` block.
 >
-> 6. **Write** exactly one JSON file at `{out_dir}/topics/external_repo_dependencies.json` with the standard top-level shape:
+> 6. **Write output.** Write exactly one JSON file at `{out_dir}/topics/external_repo_dependencies.json` with the standard top-level shape:
 >    ```jsonc
 >    {
 >      "_meta": {

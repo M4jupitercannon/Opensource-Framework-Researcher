@@ -1,6 +1,6 @@
 # Opensource-Framework-Researcher
 
-A Claude Code [skill](https://docs.claude.com/en/docs/claude-code/skills) that runs a multi-agent investigation of one **(chip vendor, framework, feature)** triple in the open-source AI inference / training ecosystem and emits dashboard-ready outputs.
+A cross-agent research workflow for Claude Code, Cursor, and Codex. It investigates one **(chip vendor, framework, feature)** triple in the open-source AI inference / training ecosystem and emits dashboard-ready outputs.
 
 Examples of triples this skill handles:
 
@@ -9,7 +9,9 @@ Examples of triples this skill handles:
 - `NVIDIA + TensorRT-LLM + speculative-decoding`
 - `Google + JAX + paged-KV` *(if your framework→repo map is extended)*
 
-It generalizes the methodology of a hand-run vLLM-EP investigation: **5 parallel Phase-1a researcher sub-agents** fan out across the default topics, then **1 serial Phase-1b analyzer sub-agent** derives external-repo dependencies from three of those topic outputs, three serial verification monitors (existence, chip-vendor scope, feature strictness) independently re-check every PR / issue / URL via the GitHub CLI and `WebFetch`, and the main agent synthesizes a single highlighted Markdown report from per-topic JSON files.
+It generalizes the methodology of a hand-run vLLM-EP investigation: **5 Phase-1a researcher roles** cover the default topics, then **1 Phase-1b analyzer role** derives external-repo dependencies from three of those topic outputs, three serial verification monitors (existence, chip-vendor scope, feature strictness) independently re-check every PR / issue / URL via the GitHub CLI and web fetch, and the main agent synthesizes a single highlighted Markdown report from per-topic JSON files.
+
+When the host agent supports delegated workers (Claude Code, Cursor, or similar), Phase 1a can run in parallel. In Codex or any environment without worker delegation, use the serial fallback mode described in `SKILL.md` and `AGENTS.md`.
 
 ## What you get per run
 
@@ -51,44 +53,72 @@ Topics are user-configurable: pass a subset to limit scope, or supply custom top
 | MLPerf | Public chip-vs-chip benchmark cross-check. |
 | [SemiAnalysis InferenceX](https://github.com/SemiAnalysisAI/InferenceX) | Third-party perf reference. |
 
+## Compatibility
+
+| Environment | Entry point | Notes |
+|---|---|---|
+| Claude Code | `SKILL.md` | `install.sh` installs under `~/.claude/skills/feature-research`; invoke naturally or with `/feature-research`. |
+| Cursor | `SKILL.md` | `install.sh` installs under `~/.cursor/skills/feature-research`; invoke naturally, with `/feature-research`, or attach as context. |
+| Codex | `AGENTS.md` | `install.sh` installs a repo link under `~/.codex/skills/feature-research` and a managed block in `~/.codex/AGENTS.md`. |
+
 ## Install
 
-Clone into your Claude Code skills directory:
+Clone the repository anywhere you want to keep the working copy, then run the installer:
 
 ```bash
-mkdir -p ~/.claude/skills
 git clone https://github.com/M4jupitercannon/Opensource-Framework-Researcher.git \
-    ~/.claude/skills/feature-research
+    ~/Opensource-Framework-Researcher
+cd ~/Opensource-Framework-Researcher
+./install.sh
 ```
 
-Verify Claude Code picks it up — it should appear in your available-skills list as `feature-research` on next session start.
+By default, `install.sh` installs symlinks for Claude Code, Cursor, and Codex. Use targeted installs when needed:
+
+```bash
+./install.sh --target claude
+./install.sh --target cursor
+./install.sh --target codex
+```
+
+Use `--copy` if you want independent copies instead of symlinks. Use `--force` only when replacing an existing install path; it moves the old path to a timestamped backup before installing.
+
+```bash
+./install.sh --copy --target cursor
+./install.sh --force --target claude
+```
+
+Verify Claude Code / Cursor pick it up on the next session start. Codex reads the managed `feature-research` block from `~/.codex/AGENTS.md`, which points back to this repo's `AGENTS.md` and `SKILL.md`.
 
 ### Prerequisites
 
-- Claude Code (the CLI)
+- Claude Code, Cursor, Codex, or another agentic coding environment
 - `gh` (GitHub CLI), authenticated — `gh auth status` should show a valid login.
 
 ## Use
 
-In any Claude Code session, just name the triple naturally:
+In any supported agent session, name the triple naturally:
 
 > "Use the feature-research skill for NVIDIA + vLLM + EP"
 >
 > "Run feature-research on AMD + SGLang + PD-disaggregation"
 
+Claude Code and Cursor use `SKILL.md` directly. Codex starts from `AGENTS.md`, which points back to `SKILL.md` as the canonical runbook.
+
 The skill walks through:
 
 1. **Phase 0** — resolve scope from chip vendor (in-scope SM/CDNA/XPU codes + out-of-scope drops).
-2. **Phase 1a** — spawn one researcher sub-agent per default topic, in parallel (excluding `external_repo_dependencies`). Each verifies every PR / issue with `gh` before writing its JSON.
-3. **Phase 1b** — once `completed_subfeatures.json`, `kernels_or_components.json`, and `open_issues.json` are on disk, spawn one serial `analyzer_external_repos` sub-agent that derives `external_repo_dependencies.json` from them (verifying every external-repo ref against its OWN repo).
-4. **Phase 2** — three serial verification monitor sub-agents in series: Stage 1 (`monitor_existence`) re-samples PR/issue/URL existence and verbatim quotes, Stage 2 (`monitor_scope`) audits chip-vendor scope, Stage 3 (`monitor_feature`) audits feature strictness. Each writes its own `verification_*.md`; later stages run only after the prior stage reaches GREEN/YELLOW.
+2. **Phase 1a** — run one researcher role per default topic, in parallel when supported (excluding `external_repo_dependencies`). Each verifies every PR / issue with `gh` before writing its JSON.
+3. **Phase 1b** — once `completed_subfeatures.json`, `kernels_or_components.json`, and `open_issues.json` are on disk, run one serial `analyzer_external_repos` role that derives `external_repo_dependencies.json` from them (verifying every external-repo ref against its OWN repo).
+4. **Phase 2** — three serial verification monitor roles in series: Stage 1 (`monitor_existence`) re-samples PR/issue/URL existence and verbatim quotes, Stage 2 (`monitor_scope`) audits chip-vendor scope, Stage 3 (`monitor_feature`) audits feature strictness. Each writes its own `verification_*.md`; later stages run only after the prior stage reaches GREEN/YELLOW.
 5. **Phase 3** — apply YELLOW / AMBER / RED must-fixes from all three stages, synthesize `REPORT.md`.
 6. **Phase 4** — print paths to all artifacts (`REPORT.md`, the three `verification_*.md` files, `scope.json`, and the per-topic JSONs under `topics/`).
 
 ## Repo layout
 
 ```
+install.sh                    # installs symlinks/copies for Claude Code, Cursor, and Codex
 SKILL.md                     # entry + 4-phase orchestration contract
+AGENTS.md                    # Codex/project-instruction shim that points to SKILL.md
 topics/
   default_topics.md          # 6 default topic definitions (prompt + entry schema each) — 5 Phase-1a researchers + 1 Phase-1b analyzer
   topic_json_schema.md       # required JSON shape every topic file must conform to
@@ -104,6 +134,8 @@ agents/
   monitor_feature.md         # Stage-3 verification sub-agent prompt — feature-strictness audit
 templates/
   REPORT_template.md         # synthesized report skeleton
+scripts/
+  check_compat.py            # lightweight packaging/wording validation
 ```
 
 ## Extending
@@ -114,10 +146,18 @@ templates/
 
 ## Design constraints baked in
 
-- **Sub-agents do not spawn further sub-agents** — orchestration stays flat in the main agent.
-- **Verify before write** — every PR / issue / URL is `gh`-checked or `WebFetch`-checked by the producing researcher before the JSON file is written. The monitor re-samples but does not substitute.
+- **Roles do not spawn nested workers** — orchestration stays flat in the main agent.
+- **Verify before write** — every PR / issue / URL is `gh`-checked or web-fetched by the producing researcher before the JSON file is written. The monitor re-samples but does not substitute.
 - **Verbatim source quotes** — perf-number entries store an exact quote from the cited source; the monitor diffs against the live page.
 - **Scope audit trail** — items dropped for being out-of-scope are logged in `verification_scope.md` (Stage 2) and surfaced in the report's Verification Footer.
+
+## Compatibility check
+
+Run this before publishing changes:
+
+```bash
+python scripts/check_compat.py
+```
 
 ## License
 

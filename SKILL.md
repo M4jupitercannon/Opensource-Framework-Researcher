@@ -1,7 +1,7 @@
 ---
 name: feature-research
-description: "Multi-agent research on the state of a hot/key feature in an open-source AI framework on a specific chip vendor. Trigger when the user names a (chip vendor, framework, feature) triple — e.g. 'NVIDIA + vLLM + EP', 'AMD + SGLang + PD-disaggregation', 'NVIDIA + TensorRT-LLM + speculative decoding' — and asks for a report, overview, dashboard, status, roadmap, or 'what's the state of X' investigation. Produces dashboard-ready per-topic JSON files plus a synthesized Markdown report."
-compatibility: claude-code
+description: "Researches the state of a hot/key feature in an open-source AI framework on a specific chip vendor. Trigger when the user names a (chip vendor, framework, feature) triple — e.g. 'NVIDIA + vLLM + EP', 'AMD + SGLang + PD-disaggregation', 'NVIDIA + TensorRT-LLM + speculative decoding' — and asks for a report, overview, dashboard, status, roadmap, or 'what's the state of X' investigation. Produces dashboard-ready per-topic JSON files plus a synthesized Markdown report."
+compatibility: claude-code, cursor, codex
 metadata:
   workflow: research
   audience: researchers, perf engineers, product
@@ -28,13 +28,24 @@ Multi-agent investigation of a single feature (e.g. Expert Parallelism, Prefill-
 
 ## Hard rules
 
-1. **Orchestration-only.** The main agent never executes a researcher or monitor runbook itself. It resolves scope, fans out sub-agents, then synthesizes their outputs.
-2. **Flat sub-agents.** Researchers and the monitor must NOT call the Agent tool. (Nested sub-agents are not supported.)
-3. **Verify before write.** Every PR / issue / URL claim in any topic JSON MUST be live-verified by the producing researcher (via `gh` / `WebFetch`) before the JSON is written. The monitor re-samples but does not substitute. **Documented exception**: `monitor_existence` (Stage 1) does NOT re-sample refs in `external_repo_dependencies.json`, because those refs point to EXTERNAL repos (e.g. `deepseek-ai/DeepEP`, `NVIDIA/cutlass`), not `{framework_repo}`. The Phase-1b `analyzer_external_repos` is the authoritative verifier for external-repo refs — it ran `gh pr/issue view` against each external repo before write and recorded any failures in `_meta.dropped_unverifiable`. Re-sampling external refs in `monitor_existence` would duplicate analyzer work and risk falsely flagging valid refs (or coincidentally validating the wrong PR in `{framework_repo}`). Stage 1 still enforces the `_meta` schema on `external_repo_dependencies.json`, including the additional `_meta.dropped_unverifiable` requirement.
+1. **Use the best available execution mode.** Prefer parallel sub-agent mode when the host agent supports delegated workers; otherwise use serial fallback mode in the main agent.
+2. **Flat delegation.** Researcher/analyzer/monitor roles must NOT spawn further sub-agents. Nested delegation is not supported.
+3. **Verify before write.** Every PR / issue / URL claim in any topic JSON MUST be live-verified by the producing researcher (via `gh` / web fetch) before the JSON is written. The monitor re-samples but does not substitute. **Documented exception**: `monitor_existence` (Stage 1) does NOT re-sample refs in `external_repo_dependencies.json`, because those refs point to EXTERNAL repos (e.g. `deepseek-ai/DeepEP`, `NVIDIA/cutlass`), not `{framework_repo}`. The Phase-1b `analyzer_external_repos` is the authoritative verifier for external-repo refs — it ran `gh pr/issue view` against each external repo before write and recorded any failures in `_meta.dropped_unverifiable`. Re-sampling external refs in `monitor_existence` would duplicate analyzer work and risk falsely flagging valid refs (or coincidentally validating the wrong PR in `{framework_repo}`). Stage 1 still enforces the `_meta` schema on `external_repo_dependencies.json`, including the additional `_meta.dropped_unverifiable` requirement.
 4. **No q1/q2/q3 labels.** Section headings in the synthesized report use the topic names directly (e.g. `## Completed Subfeatures`, `## Open Issues`, `## Roadmap`).
 5. **Required JSON metadata.** Every topic JSON file has a top-level `_meta` block with at least: `scope`, `sources_used`, `verified_at`, `framework_repo`. See `templates/` notes (schema lives in `topics/topic_json_schema.md`).
 6. **Three-stage audit trail.** Stage-1 (`monitor_existence`) catches hallucinated PRs/issues/URLs and verbatim-quote drift; failures here force a researcher re-spawn. Stage-2 (`monitor_scope`) drops out-of-scope items and logs them in `verification_scope.md` plus `_meta.dropped_out_of_scope`. Stage-3 (`monitor_feature`) drops/recategorizes items that fail feature-strictness and logs them in `verification_feature.md` plus `_meta.{removed_by_strictness_audit, recategorized_as_other, dedup_canonical}`. All three sets surface in the report's Verification Footer — nothing is silently discarded.
 7. **External-repo analyzer is serial after the subfeature researcher.** The `analyzer_external_repos` sub-agent (Phase 1b) MUST NOT be spawned in parallel with the `completed_subfeatures` researcher — it consumes that researcher's output. It also requires `kernels_or_components.json` and `open_issues.json`. The other two default topics (`roadmap`, `perf_numbers`) may still be in flight when the analyzer starts.
+
+## Execution modes
+
+**Parallel sub-agent mode (Claude Code / Cursor / any host with delegation):**
+- The main agent performs Phase 0, launches one delegated worker per Phase-1a topic, launches the Phase-1b analyzer after its three prerequisites exist, then launches the three monitor roles serially.
+- Each delegated role receives the matching prompt template from `agents/`, writes exactly one artifact, and returns only a short summary.
+
+**Serial fallback mode (Codex / any host without delegation):**
+- The main agent performs the same roles itself, one at a time, using the prompt templates as role checklists.
+- Preserve the same phase order, output paths, JSON schemas, verification gates, and re-spawn budget. A "re-spawn" in fallback mode means re-running that topic role from scratch with the offending refs embedded in the prompt.
+- Do not skip verification because the run is serial; every included claim still needs `gh` and web-source confirmation before write.
 
 ## Workflow
 
@@ -45,18 +56,18 @@ Multi-agent investigation of a single feature (e.g. Expert Parallelism, Prefill-
 3. Read `sources/source_playbook.md` and resolve `framework` → `org/repo` for the GitHub queries (use `gh_repo_override` if given).
 4. Create `out_dir/` and write `out_dir/scope.json` with: `{chip, framework, framework_repo, feature, in_scope, out_of_scope_drops, scope_statement, generated_at}`.
 
-### Phase 1 — Parallel research (main agent fans out)
+### Phase 1 — Research
 
-#### Phase 1a — Default researchers (parallel)
+#### Phase 1a — Default researchers
 
 1. Read `topics/default_topics.md` (or use the user's `topics` override).
-2. **In a single message, spawn one `researcher` sub-agent per default topic** (parallel tool calls). Each researcher's prompt is built from `agents/researcher.md` + the per-topic spec from `default_topics.md` + the resolved scope + the source playbook + the target output path `out_dir/topics/{topic_name}.json`. NOTE: do NOT spawn a researcher for `external_repo_dependencies` here — it is produced by an analyzer in Phase 1b, not a generic researcher.
-3. Wait for all Phase-1a researchers to return. Each returns: file path written, entry count, count of `gh`/`WebFetch` verifications performed.
+2. In parallel sub-agent mode, spawn one `researcher` worker per default topic in a single message. In serial fallback mode, run those researcher roles one at a time in the main agent. Each researcher's prompt is built from `agents/researcher.md` + the per-topic spec from `default_topics.md` + the resolved scope + the source playbook + the target output path `out_dir/topics/{topic_name}.json`. NOTE: do NOT run a researcher for `external_repo_dependencies` here — it is produced by an analyzer in Phase 1b, not a generic researcher.
+3. Wait for all Phase-1a researchers to finish. Each returns: file path written, entry count, count of `gh`/web-fetch verifications performed.
 4. If any researcher reports an error, surface it and stop before Phase 1b / Phase 2.
 
 #### Phase 1b — External-repo analyzer (serial after subset of Phase 1a)
 
-1. Once `out_dir/topics/completed_subfeatures.json`, `out_dir/topics/kernels_or_components.json`, AND `out_dir/topics/open_issues.json` have all been written by their Phase-1a researchers, spawn ONE `analyzer_external_repos` sub-agent (prompt from `agents/analyzer_external_repos.md`). The other Phase-1a researchers (`roadmap`, `perf_numbers`) may still be running in parallel — the analyzer does not depend on them.
+1. Once `out_dir/topics/completed_subfeatures.json`, `out_dir/topics/kernels_or_components.json`, AND `out_dir/topics/open_issues.json` have all been written by their Phase-1a researchers, run ONE `analyzer_external_repos` role (prompt from `agents/analyzer_external_repos.md`). In parallel sub-agent mode this can be delegated while the other independent Phase-1a researchers (`roadmap`, `perf_numbers`) are still running; in serial fallback mode run it after its prerequisites finish.
 2. The analyzer's prompt is built from `agents/analyzer_external_repos.md` + the resolved scope + the three input JSON paths + the target output path `out_dir/topics/external_repo_dependencies.json`.
 3. Wait for ALL of Phase 1a + Phase 1b to complete before advancing to Phase 2.
 4. If the analyzer reports an error, surface it and stop before Phase 2.
@@ -65,16 +76,16 @@ Multi-agent investigation of a single feature (e.g. Expert Parallelism, Prefill-
 
 ### Phase 2 — Three-stage verification (serial)
 
-Verification runs as **three independent monitor sub-agents in series**. Stage 1 audits existence (do the cited PRs/issues/URLs really exist?); Stage 2 audits chip-vendor scope; Stage 3 audits feature-strictness. Each stage writes its own `verification_*.md`. A later stage runs only after the prior stage reaches GREEN/YELLOW.
+Verification runs as **three independent monitor roles in series**. Stage 1 audits existence (do the cited PRs/issues/URLs really exist?); Stage 2 audits chip-vendor scope; Stage 3 audits feature-strictness. Each stage writes its own `verification_*.md`. A later stage runs only after the prior stage reaches GREEN/YELLOW.
 
 **Stage 2.1 — Existence & facts (`monitor_existence`)**
-1. Spawn one `monitor_existence` sub-agent (prompt from `agents/monitor_existence.md`) with `out_dir/topics/` as input. No scope.json needed — this stage is purely "does this exist?".
+1. Run one `monitor_existence` role (prompt from `agents/monitor_existence.md`) with `out_dir/topics/` as input. No scope.json needed — this stage is purely "does this exist?".
 2. Wait for `out_dir/verification_existence.md` and the verdict (`GREEN` / `YELLOW` / `RED` + must-fix list).
 3. If `RED` (hallucinated PR/issue/URL or missing `_meta` fields): re-spawn the relevant researcher(s), then re-run Stage 2.1, subject to the phase-level re-spawn budget (see end of Phase 2). Do NOT advance to Stage 2.2. **The re-spawn prompt MUST embed the offending refs / hallucinated PR numbers / failing-strictness items from the punch-list verbatim, with an explicit instruction `do not re-introduce the following items: …`.**
 4. If `YELLOW` (verbatim-quote drift or internal-consistency conflict): the main agent applies the must-fixes to the topic JSONs (correct quotes, reconcile state mismatches) before Stage 2.2.
 
 **Stage 2.2 — Chip-vendor scope (`monitor_scope`)**
-1. Spawn one `monitor_scope` sub-agent (prompt from `agents/monitor_scope.md`) with `out_dir/topics/`, `out_dir/scope.json`, and `out_dir/verification_existence.md` as inputs.
+1. Run one `monitor_scope` role (prompt from `agents/monitor_scope.md`) with `out_dir/topics/`, `out_dir/scope.json`, and `out_dir/verification_existence.md` as inputs.
 2. Wait for `out_dir/verification_scope.md` and the verdict (`GREEN` / `YELLOW` / `RED` + must-fix list).
 3. If `RED` (a single topic loses majority of entries to scope filtering): re-spawn that researcher with a tightened scope reminder and re-run Stages 2.1 + 2.2, subject to the phase-level re-spawn budget (see end of Phase 2). Do NOT advance to Stage 2.3. **The re-spawn prompt MUST embed the offending refs / out-of-scope hardware items from the punch-list verbatim, with an explicit instruction `do not re-introduce the following items: …`.**
 4. If `YELLOW` (out-of-scope drops, scope-mixing, or scope-ambiguity nits): the main agent applies the must-fixes to the topic JSONs (drop entries, narrow hardware lists, annotate ambiguous families) before Stage 2.3. Audit-trail entries are written to the appropriate per-topic `_meta.*` arrays:
@@ -83,7 +94,7 @@ Verification runs as **three independent monitor sub-agents in series**. Stage 1
    - **scope-ambiguity annotations** → `_meta.scope_ambiguity_annotated` with `{ref, family, in_scope_members}`
 
 **Stage 2.3 — Feature strictness (`monitor_feature`)**
-1. Spawn one `monitor_feature` sub-agent (prompt from `agents/monitor_feature.md`) with `out_dir/topics/`, `out_dir/scope.json`, `out_dir/verification_existence.md`, and `out_dir/verification_scope.md`. **Source of `{feature_strictness_criteria}`**: if the user passed the optional `feature_strictness_criteria` input (see Inputs section), the main agent substitutes it verbatim into the placeholder. Otherwise, the main agent leaves the placeholder empty and the monitor falls back to its built-in default 6-criterion test (defined in `agents/monitor_feature.md` under "Default strictness test"). There is no separate per-feature criteria file — feature-specific strictness rules live entirely in the user-supplied input or in the monitor's default test.
+1. Run one `monitor_feature` role (prompt from `agents/monitor_feature.md`) with `out_dir/topics/`, `out_dir/scope.json`, `out_dir/verification_existence.md`, and `out_dir/verification_scope.md`. **Source of `{feature_strictness_criteria}`**: if the user passed the optional `feature_strictness_criteria` input (see Inputs section), the main agent substitutes it verbatim into the placeholder. Otherwise, the main agent leaves the placeholder empty and the monitor falls back to its built-in default 6-criterion test (defined in `agents/monitor_feature.md` under "Default strictness test"). There is no separate per-feature criteria file — feature-specific strictness rules live entirely in the user-supplied input or in the monitor's default test.
 2. Wait for `out_dir/verification_feature.md` and the verdict (`GREEN` / `AMBER` / `RED`).
 3. If `RED` (a topic loses majority of entries or a headline subfeature itself fails strictness): re-spawn the relevant researcher(s) with a tightened `topic_prompt` and re-run all three stages, subject to the phase-level re-spawn budget (see end of Phase 2). **The re-spawn prompt MUST embed the offending refs / failing-strictness items from the punch-list verbatim, with an explicit instruction `do not re-introduce the following items: …`.**
 4. If `AMBER` (recategorize / drop recommendations): the main agent applies the punch-list to the topic JSONs (move entries to canonical buckets, delete entries) while preserving every change in the appropriate per-topic `_meta.*` audit array:
@@ -127,7 +138,7 @@ If the user names a framework not in the map and does not pass `gh_repo_override
 | `topics/default_topics.md` | The 6 default research topics + their prompts and entry schemas (5 Phase-1a researchers + 1 Phase-1b analyzer topic) |
 | `topics/topic_json_schema.md` | Required JSON shape every topic file must conform to |
 | `scope/chip_scope_map.md` | Vendor → in/out scope SM/CDNA/XPU codes and scope statements |
-| `sources/source_playbook.md` | gh / WebFetch / WebSearch / MLPerf / InferenceX recipes |
+| `sources/source_playbook.md` | `gh` / web fetch/search / MLPerf / InferenceX recipes |
 | `agents/researcher.md` | Per-topic researcher sub-agent prompt template |
 | `agents/analyzer_external_repos.md` | Phase-1b external-repo analyzer sub-agent prompt template — runs after `completed_subfeatures` + `kernels_or_components` + `open_issues` are on disk; produces `topics/external_repo_dependencies.json` |
 | `agents/monitor_existence.md` | Stage-1 verification sub-agent prompt — every cited PR/issue/URL must really exist on `{framework_repo}`; verbatim quotes must match their source |

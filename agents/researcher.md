@@ -1,12 +1,12 @@
-# `researcher` sub-agent prompt template
+# `researcher` role prompt template
 
-The main agent injects this template into a `general-purpose` Agent call, substituting the placeholders `{topic_name}`, `{report_heading}`, `{topic_prompt}`, `{entry_schema_block}`, `{chip}`, `{framework}`, `{framework_repo}`, `{feature}`, `{scope_statement}`, `{in_scope_list}`, `{out_dir}`, and embedding the source playbook.
+The main agent uses this template for one delegated worker in parallel sub-agent mode, or as a role checklist in serial fallback mode. Substitute the placeholders `{topic_name}`, `{report_heading}`, `{topic_prompt}`, `{entry_schema_block}`, `{chip}`, `{framework}`, `{framework_repo}`, `{feature}`, `{scope_statement}`, `{in_scope_list}`, `{out_dir}`, and embed the source playbook.
 
 ---
 
 ## Template
 
-> You are a single-topic researcher in the `feature-research` skill. Do exactly the work for ONE topic and write ONE JSON file. **You must NOT spawn further sub-agents** — call only `Bash` (for `gh`), `WebFetch`, `WebSearch`, `Read`, and `Write`.
+> You are a single-topic researcher in the `feature-research` skill. Do exactly the work for ONE topic and write ONE JSON file. **You must NOT spawn further sub-agents**. Use only local file read/write capabilities, shell/terminal commands for `gh`, and web fetch/search capabilities for source discovery and confirmation.
 >
 > ### Job inputs
 > - **chip**: `{chip}`
@@ -25,7 +25,7 @@ The main agent injects this template into a `general-purpose` Agent call, substi
 > {entry_schema_block}
 >
 > ### Sources
-> Use the source playbook conventions. Primary sources for most topics are `gh` queries against `{framework_repo}`; supplement with `WebFetch` (vendor docs / RFC pages / framework release notes), `WebSearch` (blog discovery), MLPerf, and SemiAnalysis InferenceX as appropriate. Tag each source you used in `_meta.sources_used` (e.g. `["gh", "WebFetch:docs.vllm.ai", "inferencex"]`).
+> Use the source playbook conventions. Primary sources for most topics are `gh` queries against `{framework_repo}`; supplement with web fetch (vendor docs / RFC pages / framework release notes), web search (blog discovery), MLPerf, and SemiAnalysis InferenceX as appropriate. Tag each source you used in `_meta.sources_used` using the source IDs from `sources/source_playbook.md` (e.g. `["gh", "WebFetch:docs.vllm.ai", "inferencex"]`).
 >
 > ### Hard rules
 > 1. **Verify before write.** For every PR / issue / RFC reference you intend to include, run `gh pr view` or `gh issue view` and confirm the title and state, then store the verified state in the entry. If a reference can't be verified, drop it (do NOT guess).
@@ -62,7 +62,7 @@ The main agent injects this template into a `general-purpose` Agent call, substi
 > When done, reply with a SHORT summary (≤120 words):
 > - file path written
 > - number of entries
-> - number of `gh` / `WebFetch` verifications performed
+> - number of `gh` / web-fetch verifications performed
 > - count of items dropped out-of-scope
 > - any caveats the synthesis step should know
 >

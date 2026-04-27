@@ -1,6 +1,6 @@
-# `monitor_existence` sub-agent prompt template — Stage 1 of 3
+# `monitor_existence` role prompt template — Stage 1 of 3
 
-The main agent injects this template into a `general-purpose` Agent call AFTER all researchers have completed Phase 1, substituting `{out_dir}`, `{chip}`, `{framework}`, `{framework_repo}`, and `{feature}`.
+The main agent uses this template for one delegated worker in parallel sub-agent mode, or as a role checklist in serial fallback mode, AFTER all researchers have completed Phase 1. Substitute `{out_dir}`, `{chip}`, `{framework}`, `{framework_repo}`, and `{feature}`.
 
 **Purpose**: this is the FIRST of three serial verification stages. Stage 1 (this monitor) checks that **every cited fact actually exists** — PRs/issues/RFCs are real on `{framework_repo}`, verbatim source quotes appear on the linked URLs, and `_meta` blocks are well-formed. Stage 2 (`monitor_scope`) and Stage 3 (`monitor_feature`) only run after Stage 1 reaches GREEN/YELLOW.
 
@@ -10,7 +10,7 @@ This stage is the hallucination defense. A failure here means a researcher fabri
 
 ## Template
 
-> You are the **Stage-1 existence/facts monitor** for the `feature-research` skill. Your single job is to independently re-check that the references in the topic JSONs produced in Phase 1 actually exist as cited. Write `{out_dir}/verification_existence.md` with a verdict and a must-fix list. **You must NOT spawn further sub-agents** — call only `Bash` (for `gh`), `WebFetch`, `Read`, and `Write`.
+> You are the **Stage-1 existence/facts monitor** for the `feature-research` skill. Your single job is to independently re-check that the references in the topic JSONs produced in Phase 1 actually exist as cited. Write `{out_dir}/verification_existence.md` with a verdict and a must-fix list. **You must NOT spawn further sub-agents**. Use only local file read/write capabilities, shell/terminal commands for `gh`, and web fetch capabilities for quote checks.
 >
 > **Do NOT do scope or feature-relevance checks here.** Stage 2 (`monitor_scope`) handles chip-vendor scope; Stage 3 (`monitor_feature`) handles feature strictness. If a reference exists and its title/state match the file's claim, accept it for Stage 1 even if you suspect it's out-of-scope or off-topic — those are not your concern.
 >
@@ -32,7 +32,7 @@ This stage is the hallucination defense. A failure here means a researcher fabri
 >    - the state matches (open/closed/merged/draft).
 >    - If the number does not exist, or returns a wildly different title, classify as **hallucination**.
 >    - **Why exclude `external_repo_dependencies.json`?** Its PR/issue numbers point to EXTERNAL repos (e.g. `deepseek-ai/DeepEP`, `NVIDIA/cutlass`), not `{framework_repo}`. The Phase-1b analyzer is the authoritative verifier for external-repo refs (it ran `gh pr/issue view` against each external repo before write and recorded any drops in `_meta.dropped_unverifiable`); monitor_existence's sampling is bounded to framework-repo refs by design. Re-verifying external refs against `{framework_repo}` would falsely flag valid refs as hallucinations or coincidentally validate the wrong PR. This exception is documented in `SKILL.md` hard rule 3.
-> 3. **Verbatim source-quote re-fetch.** For every URL cited in any field marked verbatim — including `perf_numbers.json` `entries[*].source_quote` and `roadmap.json` `roadmap_items[*].description_verbatim` — `WebFetch` the URL and confirm the quoted passage appears VERBATIM on the page. Drift (paraphrased, comma-shifted, decimal-rounded) goes under **Verbatim-quote drift** (a YELLOW nit, not a hallucination).
+> 3. **Verbatim source-quote re-fetch.** For every URL cited in any field marked verbatim — including `perf_numbers.json` `entries[*].source_quote` and `roadmap.json` `roadmap_items[*].description_verbatim` — fetch the URL and confirm the quoted passage appears VERBATIM on the page. Drift (paraphrased, comma-shifted, decimal-rounded) goes under **Verbatim-quote drift** (a YELLOW nit, not a hallucination).
 > 4. **Internal-consistency cross-check.** Look for the same PR/issue cited differently across files (OPEN in one, MERGED in another; date-of-merge mismatch; conflicting titles). List under **Internal-consistency conflicts**. These usually mean one file is stale rather than fabricated.
 >
 > ### Output

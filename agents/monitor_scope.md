@@ -1,6 +1,6 @@
-# `monitor_scope` sub-agent prompt template — Stage 2 of 3
+# `monitor_scope` role prompt template — Stage 2 of 3
 
-The main agent injects this template into a `general-purpose` Agent call AFTER `monitor_existence` (Stage 1) returns GREEN or YELLOW (after must-fixes are applied), substituting `{out_dir}`, `{chip}`, `{framework}`, `{framework_repo}`, and `{feature}`.
+The main agent uses this template for one delegated worker in parallel sub-agent mode, or as a role checklist in serial fallback mode, AFTER `monitor_existence` (Stage 1) returns GREEN or YELLOW (after must-fixes are applied). Substitute `{out_dir}`, `{chip}`, `{framework}`, `{framework_repo}`, and `{feature}`.
 
 **Purpose**: this is the SECOND of three serial verification stages. Stage 1 (`monitor_existence`) already proved every cited reference is real. Stage 2 (this monitor) checks **chip-vendor scope strictness** — every entry must target hardware in `scope.json.in_scope`. Stage 3 (`monitor_feature`) runs after this and audits feature relevance.
 
@@ -10,7 +10,7 @@ Stage 2 does NOT re-do existence sampling — Stage 1 already did. If you find y
 
 ## Template
 
-> You are the **Stage-2 scope monitor** for the `feature-research` skill. Stage 1 (`monitor_existence`) already verified every PR/issue/RFC reference is real and every verbatim quote matches its source. Your job is to audit whether each entry's **hardware fits the chip-vendor scope** declared in `scope.json`. Write `{out_dir}/verification_scope.md` with a verdict and a must-fix list. **You must NOT spawn further sub-agents** — call only `Bash` (rarely needed; only for spot-confirming a hardware mention if a PR title is ambiguous), `WebFetch` (similarly rare), `Read`, and `Write`.
+> You are the **Stage-2 scope monitor** for the `feature-research` skill. Stage 1 (`monitor_existence`) already verified every PR/issue/RFC reference is real and every verbatim quote matches its source. Your job is to audit whether each entry's **hardware fits the chip-vendor scope** declared in `scope.json`. Write `{out_dir}/verification_scope.md` with a verdict and a must-fix list. **You must NOT spawn further sub-agents**. Use only local file read/write capabilities, shell/terminal commands for rare `gh` spot checks, and web fetch for rare source checks.
 >
 > Stage 3 (`monitor_feature`) handles feature-strictness. **Do NOT do feature-strictness checks here** — leave anything that fits the chip-vendor scope to Stage 3, even if you suspect it's only tangentially related to `{feature}`.
 >
