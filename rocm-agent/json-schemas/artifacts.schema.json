@@ -1,0 +1,590 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cursor.local/rocm-agent/artifacts.schema.json",
+  "title": "ROCm-agent artifact schemas",
+  "description": "Top-level artifact validator that discriminates on `_meta.schema` and applies a per-family schema branch. Recognized values: scope.v1, remediation_state.v1, subfeatures.v1, collector.v1, subfeature_influence_matrix.v1, backend_repo_map.v1, stability_gaps.v1, performance_kernel_gaps.v1, criteria_scores.v1, dashboard_data.v1, report_citations.v1.",
+  "type": "object",
+  "additionalProperties": true,
+  "required": ["_meta"],
+  "properties": {
+    "_meta": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["schema"],
+      "properties": {
+        "schema": { "type": "string", "minLength": 1 }
+      }
+    }
+  },
+  "$defs": {
+    "dropArray": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": true,
+        "required": ["reason"],
+        "properties": {
+          "ref": { "type": "string" },
+          "candidate": { "type": "string" },
+          "reason": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
+    "sourcePointer": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["artifact", "json_pointer", "ref", "source_url", "verified_state"],
+      "properties": {
+        "artifact": { "type": "string", "minLength": 1 },
+        "json_pointer": { "type": "string", "pattern": "^/" },
+        "evidence_id": { "type": "string", "minLength": 1 },
+        "row_id": { "type": "string", "minLength": 1 },
+        "ref": { "type": "string", "minLength": 1 },
+        "source_url": { "type": "string", "minLength": 1 },
+        "verified_state": { "enum": ["MERGED", "OPEN", "CLOSED", "PUBLISHED", "N/A", "DROPPED"] },
+        "evidence_tier": { "enum": ["primary", "secondary", "anecdotal"] },
+        "quote_sha256": { "type": ["string", "null"], "pattern": "^[a-f0-9]{64}$" }
+      },
+      "anyOf": [
+        { "required": ["evidence_id"] },
+        { "required": ["row_id"] }
+      ]
+    },
+    "commonMeta": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["schema", "framework", "framework_repo", "feature", "dropped_unverified", "dropped_out_of_scope", "dropped_below_threshold"],
+      "properties": {
+        "schema": { "type": "string", "minLength": 1 },
+        "framework": { "type": "string", "minLength": 1 },
+        "framework_repo": { "type": "string", "minLength": 1 },
+        "feature": { "type": "string", "minLength": 1 },
+        "dropped_unverified": { "$ref": "#/$defs/dropArray" },
+        "dropped_out_of_scope": { "$ref": "#/$defs/dropArray" },
+        "dropped_below_threshold": { "$ref": "#/$defs/dropArray" }
+      }
+    },
+    "scopeMeta": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["schema", "created_at", "updated_at"],
+      "properties": {
+        "schema": { "type": "string", "minLength": 1 },
+        "created_at": { "type": "string", "minLength": 1 },
+        "updated_at": { "type": "string", "minLength": 1 }
+      }
+    },
+    "remediationMeta": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["schema", "framework", "framework_repo", "feature", "created_at", "updated_at"],
+      "properties": {
+        "schema": { "type": "string", "minLength": 1 },
+        "framework": { "type": "string", "minLength": 1 },
+        "framework_repo": { "type": "string", "minLength": 1 },
+        "feature": { "type": "string", "minLength": 1 },
+        "created_at": { "type": "string", "minLength": 1 },
+        "updated_at": { "type": "string", "minLength": 1 }
+      }
+    },
+    "chipScopeSide": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["default_scope_statement", "in_scope", "out_of_scope_drops", "aliases", "product_aliases", "search_terms"],
+      "properties": {
+        "default_scope_statement": { "type": "string", "minLength": 1 },
+        "in_scope": { "type": "array", "minItems": 1, "items": { "type": "string", "minLength": 1 } },
+        "out_of_scope_drops": { "type": "array", "minItems": 1, "items": { "type": "string", "minLength": 1 } },
+        "aliases": { "type": "array", "minItems": 1, "items": { "type": "string", "minLength": 1 } },
+        "product_aliases": { "type": "object", "additionalProperties": true },
+        "search_terms": { "type": "array", "minItems": 1, "items": { "type": "string", "minLength": 1 } }
+      }
+    },
+    "collectorEntry": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["evidence_id", "subfeature", "vendor_side", "kind", "ref", "title", "verified_state", "hardware", "evidence_tier", "source_url", "discovered_via", "notes"],
+      "properties": {
+        "evidence_id": { "type": "string", "minLength": 1 },
+        "vendor_side": { "enum": ["AMD", "NVIDIA", "neutral"] },
+        "verified_state": { "enum": ["MERGED", "OPEN", "CLOSED", "PUBLISHED", "N/A", "DROPPED"] },
+        "evidence_tier": { "enum": ["primary", "secondary", "anecdotal"] },
+        "hardware": { "type": "array", "items": { "type": "string" } },
+        "discovered_via": { "type": "array", "items": { "type": "string" } }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "kind": { "const": "code" } } },
+          "then": {
+            "required": ["repo", "commit_sha", "path"],
+            "anyOf": [
+              { "required": ["symbol"] },
+              { "required": ["line_start", "line_end"] }
+            ]
+          }
+        }
+      ]
+    },
+    "stabilityGap": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["row_id", "subfeature", "symptom", "side_affected", "comparison_baseline", "feeds_score", "rationale", "amd_severity", "nvidia_severity", "amd_owner_candidate", "nvidia_owner_candidate", "confidence", "evidence_refs"],
+      "properties": {
+        "row_id": { "type": "string", "minLength": 1 },
+        "side_affected": { "enum": ["AMD", "NVIDIA"] },
+        "feeds_score": { "enum": ["feature_relevance", "performance_relevance"] },
+        "amd_severity": { "enum": ["none", "low", "medium", "high", "critical"] },
+        "nvidia_severity": { "enum": ["none", "low", "medium", "high", "critical"] },
+        "amd_owner_candidate": { "type": ["string", "null"] },
+        "nvidia_owner_candidate": { "type": ["string", "null"] },
+        "confidence": { "enum": ["high", "medium", "low"] },
+        "evidence_refs": { "type": "array", "items": { "$ref": "#/$defs/sourcePointer" } }
+      }
+    },
+    "performanceGap": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["row_id", "subfeature", "claim_type", "kind", "nv_state", "amd_state", "delta_estimate", "amd_severity", "nvidia_severity", "comparability", "amd_owner_candidate", "nvidia_owner_candidate", "confidence", "evidence_tier", "evidence_refs"],
+      "properties": {
+        "row_id": { "type": "string", "minLength": 1 },
+        "claim_type": { "enum": ["quantitative_benchmark", "performance_path"] },
+        "kind": { "enum": ["missing_kernel", "immature_kernel", "fallback_path", "missing_fusion", "poor_lowering", "excessive_host_sync"] },
+        "amd_severity": { "type": "integer", "minimum": 0, "maximum": 5 },
+        "nvidia_severity": { "type": "integer", "minimum": 0, "maximum": 5 },
+        "amd_owner_candidate": { "type": ["string", "null"] },
+        "nvidia_owner_candidate": { "type": ["string", "null"] },
+        "confidence": { "enum": ["high", "medium", "low"] },
+        "evidence_tier": { "enum": ["primary", "secondary", "anecdotal"] },
+        "evidence_refs": { "type": "array", "items": { "$ref": "#/$defs/sourcePointer" } }
+      }
+    },
+    "frameworkAnchor": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["type", "ref", "verified_state"],
+      "properties": {
+        "type": { "enum": ["doc", "code", "pr", "issue", "config"] },
+        "ref": { "type": "string", "minLength": 1 },
+        "verified_state": { "enum": ["MERGED", "OPEN", "CLOSED", "PUBLISHED", "N/A", "DROPPED"] }
+      }
+    },
+    "subfeatureItem": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["name", "description", "framework_anchors", "applicable_sides", "topic_tags"],
+      "properties": {
+        "name": { "type": "string", "minLength": 1 },
+        "description": { "type": "string", "minLength": 1 },
+        "framework_anchors": { "type": "array", "items": { "$ref": "#/$defs/frameworkAnchor" } },
+        "applicable_sides": { "type": "array", "items": { "enum": ["AMD", "NVIDIA"] } },
+        "topic_tags": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "supportStateBlock": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["amd", "nvidia"],
+      "properties": {
+        "amd": { "enum": ["supported", "experimental", "missing", "broken"] },
+        "nvidia": { "enum": ["supported", "experimental", "missing", "broken"] }
+      }
+    },
+    "enablementStateBlock": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["amd", "nvidia"],
+      "properties": {
+        "amd": { "enum": ["default_on", "flag_gated", "unavailable", "unknown"] },
+        "nvidia": { "enum": ["default_on", "flag_gated", "unavailable", "unknown"] }
+      }
+    },
+    "influenceMatrixItem": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["row_id", "subfeature", "amd", "nvidia", "support_state", "enablement_state", "evidence_refs"],
+      "properties": {
+        "row_id": { "type": "string", "minLength": 1 },
+        "subfeature": { "type": "string", "minLength": 1 },
+        "amd": { "type": "object", "additionalProperties": true },
+        "nvidia": { "type": "object", "additionalProperties": true },
+        "support_state": { "$ref": "#/$defs/supportStateBlock" },
+        "enablement_state": { "$ref": "#/$defs/enablementStateBlock" },
+        "evidence_refs": { "type": "array", "items": { "$ref": "#/$defs/sourcePointer" } }
+      }
+    },
+    "backendRepoEntry": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["row_id", "subfeature", "side", "primary_owner", "co_owners", "integration_surface", "confidence", "rationale", "evidence_refs"],
+      "properties": {
+        "row_id": { "type": "string", "minLength": 1 },
+        "subfeature": { "type": "string", "minLength": 1 },
+        "side": { "enum": ["AMD", "NVIDIA"] },
+        "primary_owner": { "type": "string", "minLength": 1 },
+        "co_owners": { "type": "array", "items": { "type": "string" } },
+        "integration_surface": { "type": "string", "minLength": 1 },
+        "confidence": { "enum": ["high", "medium", "low"] },
+        "rationale": { "type": "string", "minLength": 1 },
+        "evidence_refs": { "type": "array", "items": { "$ref": "#/$defs/sourcePointer" } }
+      }
+    },
+    "criteriaScoreEntry": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["row_id", "criterion", "dimension", "subfeatures", "amd_score", "nvidia_score", "nvidia_minus_amd_gap", "scale", "rationale", "evidence_refs", "evidence_tier", "comparability_note", "confidence"],
+      "properties": {
+        "row_id": { "type": "string", "minLength": 1 },
+        "criterion": { "type": "string", "minLength": 1 },
+        "dimension": { "enum": ["feature_relevance", "performance_relevance"] },
+        "subfeatures": { "type": "array", "minItems": 1, "items": { "type": "string", "minLength": 1 } },
+        "amd_score": { "type": "integer", "minimum": 0, "maximum": 5 },
+        "nvidia_score": { "type": "integer", "minimum": 0, "maximum": 5 },
+        "nvidia_minus_amd_gap": { "type": "integer" },
+        "scale": { "type": "string", "minLength": 1 },
+        "rationale": { "type": "string", "minLength": 1 },
+        "evidence_refs": { "type": "array", "items": { "$ref": "#/$defs/sourcePointer" } },
+        "evidence_tier": { "enum": ["primary", "secondary", "anecdotal"] },
+        "comparability_note": { "type": "string" },
+        "confidence": { "enum": ["high", "medium", "low"] }
+      }
+    },
+    "dashboardChart": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["id", "title", "type"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "title": { "type": "string", "minLength": 1 },
+        "type": { "enum": ["bar", "stacked_bar", "heatmap", "scatter", "line", "table"] }
+      }
+    },
+    "dashboardGapDashboardItem": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["aggregation_rule"],
+      "properties": {
+        "aggregation_rule": { "const": "max_abs_gap" }
+      }
+    },
+    "dashboardFinalStatus": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["status"],
+      "properties": {
+        "status": { "enum": ["draft", "publishable", "publishable-with-caveats", "blocked"] }
+      }
+    },
+    "manifestCheck": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["status", "report_refs_count", "manifest_refs_count", "missing_from_manifest", "missing_from_report"],
+      "properties": {
+        "status": { "enum": ["pass", "fail"] },
+        "report_refs_count": { "type": "integer" },
+        "manifest_refs_count": { "type": "integer" },
+        "missing_from_manifest": { "type": "array" },
+        "missing_from_report": { "type": "array" }
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "required": ["_meta"],
+        "properties": {
+          "_meta": {
+            "required": ["schema"],
+            "properties": { "schema": { "const": "scope.v1" } }
+          }
+        }
+      },
+      "then": {
+        "required": ["_meta", "inputs", "resolved", "chip_scope", "built_in_framework_repo_map", "source_policy"],
+        "properties": {
+          "_meta": { "$ref": "#/$defs/scopeMeta" },
+          "inputs": { "type": "object", "additionalProperties": true },
+          "resolved": { "type": "object", "additionalProperties": true },
+          "chip_scope": {
+            "type": "object",
+            "additionalProperties": true,
+            "required": ["amd", "nvidia"],
+            "properties": {
+              "amd": { "$ref": "#/$defs/chipScopeSide" },
+              "nvidia": { "$ref": "#/$defs/chipScopeSide" }
+            }
+          },
+          "built_in_framework_repo_map": { "type": "object", "additionalProperties": true },
+          "source_policy": { "type": "object", "additionalProperties": true }
+        }
+      }
+    },
+    {
+      "if": {
+        "required": ["_meta"],
+        "properties": {
+          "_meta": {
+            "required": ["schema"],
+            "properties": { "schema": { "const": "remediation_state.v1" } }
+          }
+        }
+      },
+      "then": {
+        "required": ["_meta", "max_recollection_rounds", "recollection_rounds_used", "rounds_remaining", "current_monitor", "current_monitor_run_phase", "history", "blocking_findings_open", "allowed_yellow_caveats"],
+        "properties": {
+          "_meta": { "$ref": "#/$defs/remediationMeta" },
+          "max_recollection_rounds": { "type": "integer" },
+          "recollection_rounds_used": { "type": "integer" },
+          "rounds_remaining": { "type": "integer" },
+          "current_monitor": { "type": "string" },
+          "current_monitor_run_phase": { "enum": ["initial", "post_synthesis"] },
+          "history": { "type": "array" },
+          "blocking_findings_open": { "type": "array" },
+          "allowed_yellow_caveats": { "type": "array" }
+        }
+      }
+    },
+    {
+      "if": {
+        "required": ["_meta"],
+        "properties": {
+          "_meta": {
+            "required": ["schema"],
+            "properties": { "schema": { "const": "subfeatures.v1" } }
+          }
+        }
+      },
+      "then": {
+        "required": ["_meta", "subfeatures"],
+        "properties": {
+          "_meta": { "$ref": "#/$defs/commonMeta" },
+          "subfeatures": { "type": "array", "items": { "$ref": "#/$defs/subfeatureItem" } }
+        }
+      }
+    },
+    {
+      "if": {
+        "required": ["_meta"],
+        "properties": {
+          "_meta": {
+            "required": ["schema"],
+            "properties": { "schema": { "const": "collector.v1" } }
+          }
+        }
+      },
+      "then": {
+        "required": ["_meta", "entries"],
+        "properties": {
+          "_meta": { "$ref": "#/$defs/commonMeta" },
+          "entries": { "type": "array", "items": { "$ref": "#/$defs/collectorEntry" } }
+        }
+      }
+    },
+    {
+      "if": {
+        "required": ["_meta"],
+        "properties": {
+          "_meta": {
+            "required": ["schema"],
+            "properties": { "schema": { "const": "subfeature_influence_matrix.v1" } }
+          }
+        }
+      },
+      "then": {
+        "required": ["_meta", "matrix"],
+        "properties": {
+          "_meta": { "$ref": "#/$defs/commonMeta" },
+          "matrix": { "type": "array", "items": { "$ref": "#/$defs/influenceMatrixItem" } }
+        }
+      }
+    },
+    {
+      "if": {
+        "required": ["_meta"],
+        "properties": {
+          "_meta": {
+            "required": ["schema"],
+            "properties": { "schema": { "const": "backend_repo_map.v1" } }
+          }
+        }
+      },
+      "then": {
+        "required": ["_meta", "entries", "counts"],
+        "properties": {
+          "_meta": { "$ref": "#/$defs/commonMeta" },
+          "entries": { "type": "array", "items": { "$ref": "#/$defs/backendRepoEntry" } },
+          "counts": { "type": "object", "additionalProperties": true }
+        }
+      }
+    },
+    {
+      "if": {
+        "required": ["_meta"],
+        "properties": {
+          "_meta": {
+            "required": ["schema"],
+            "properties": { "schema": { "const": "stability_gaps.v1" } }
+          }
+        }
+      },
+      "then": {
+        "required": ["_meta", "entries"],
+        "properties": {
+          "_meta": { "$ref": "#/$defs/commonMeta" },
+          "entries": { "type": "array", "items": { "$ref": "#/$defs/stabilityGap" } }
+        }
+      }
+    },
+    {
+      "if": {
+        "required": ["_meta"],
+        "properties": {
+          "_meta": {
+            "required": ["schema"],
+            "properties": { "schema": { "const": "performance_kernel_gaps.v1" } }
+          }
+        }
+      },
+      "then": {
+        "required": ["_meta", "entries"],
+        "properties": {
+          "_meta": { "$ref": "#/$defs/commonMeta" },
+          "entries": { "type": "array", "items": { "$ref": "#/$defs/performanceGap" } }
+        }
+      }
+    },
+    {
+      "if": {
+        "required": ["_meta"],
+        "properties": {
+          "_meta": {
+            "required": ["schema"],
+            "properties": { "schema": { "const": "criteria_scores.v1" } }
+          }
+        }
+      },
+      "then": {
+        "required": ["_meta", "entries", "score_scale"],
+        "properties": {
+          "_meta": {
+            "allOf": [
+              { "$ref": "#/$defs/commonMeta" },
+              {
+                "type": "object",
+                "additionalProperties": true,
+                "required": ["scale"],
+                "properties": { "scale": { "type": "string", "minLength": 1 } }
+              }
+            ]
+          },
+          "entries": { "type": "array", "items": { "$ref": "#/$defs/criteriaScoreEntry" } },
+          "score_scale": { "type": "object", "additionalProperties": true }
+        }
+      }
+    },
+    {
+      "if": {
+        "required": ["_meta"],
+        "properties": {
+          "_meta": {
+            "required": ["schema"],
+            "properties": { "schema": { "const": "dashboard_data.v1" } }
+          }
+        }
+      },
+      "then": {
+        "required": ["_meta", "counts", "cards", "tables", "charts"],
+        "properties": {
+          "_meta": {
+            "allOf": [
+              { "$ref": "#/$defs/commonMeta" },
+              {
+                "type": "object",
+                "additionalProperties": true,
+                "required": ["source_artifacts", "final_status", "generated_at"],
+                "properties": {
+                  "source_artifacts": { "type": "array", "items": { "type": "string" } },
+                  "final_status": { "$ref": "#/$defs/dashboardFinalStatus" },
+                  "generated_at": { "type": "string", "minLength": 1 }
+                }
+              }
+            ]
+          },
+          "counts": { "type": "object", "additionalProperties": true },
+          "cards": { "type": "array" },
+          "tables": {
+            "type": "object",
+            "additionalProperties": true,
+            "required": ["gap_dashboard", "score_rows", "repo_influence", "performance_gaps", "support_state_distribution", "enablement_state_distribution", "framework_refs_by_side", "stability_gaps_detail", "performance_gaps_detail", "stability_severity_by_side", "performance_severity_by_side"],
+            "properties": {
+              "gap_dashboard": { "type": "array", "items": { "$ref": "#/$defs/dashboardGapDashboardItem" } },
+              "score_rows": { "type": "array" },
+              "repo_influence": { "type": "array" },
+              "performance_gaps": { "type": "array" },
+              "support_state_distribution": { "type": "array" },
+              "enablement_state_distribution": { "type": "array" },
+              "framework_refs_by_side": { "type": "array" },
+              "stability_gaps_detail": { "type": "array" },
+              "performance_gaps_detail": { "type": "array" },
+              "stability_severity_by_side": { "type": "array" },
+              "performance_severity_by_side": { "type": "array" }
+            }
+          },
+          "charts": { "type": "array", "items": { "$ref": "#/$defs/dashboardChart" } }
+        }
+      }
+    },
+    {
+      "if": {
+        "required": ["_meta"],
+        "properties": {
+          "_meta": {
+            "required": ["schema"],
+            "properties": { "schema": { "const": "report_citations.v1" } }
+          }
+        }
+      },
+      "then": {
+        "required": ["_meta", "citations"],
+        "properties": {
+          "_meta": {
+            "allOf": [
+              { "$ref": "#/$defs/commonMeta" },
+              {
+                "type": "object",
+                "additionalProperties": true,
+                "required": ["manifest_check"],
+                "properties": {
+                  "manifest_check": { "$ref": "#/$defs/manifestCheck" }
+                }
+              }
+            ]
+          },
+          "citations": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": true,
+              "required": ["report_section", "claim", "refs", "dashboard_sources", "status"],
+              "properties": {
+                "refs": { "type": "array", "items": { "$ref": "#/$defs/sourcePointer" } },
+                "dashboard_sources": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "additionalProperties": true,
+                    "required": ["artifact", "json_pointer", "row_id"],
+                    "properties": {
+                      "artifact": { "type": "string", "minLength": 1 },
+                      "json_pointer": { "type": "string", "pattern": "^/" },
+                      "row_id": { "type": "string", "minLength": 1 }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}
