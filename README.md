@@ -1,8 +1,8 @@
 # Opensource-Framework-Researcher
 
-A cross-agent research workflow for Claude Code, Cursor, Codex, and opencode. It investigates one **(chip vendor, framework, feature)** triple in the open-source AI inference / training ecosystem and emits dashboard-ready outputs.
+A cross-agent research workflow for Claude Code, Cursor, Codex, and opencode. It investigates a **(chip vendor list, framework, feature)** target in the open-source AI inference / training ecosystem and emits dashboard-ready outputs.
 
-Examples of triples this skill handles:
+Examples of targets this skill handles:
 
 - `NVIDIA + vLLM + EP` (Expert Parallelism)
 - `AMD + SGLang + PD-disaggregation`
@@ -15,7 +15,7 @@ It generalizes the methodology of a hand-run vLLM-EP investigation. The main age
 - **Phase 1b (analyzer)** — 1 external-repo analyzer derives `external_repo_dependencies.json` from three of the Phase-1a outputs.
 - **Phase 2 (verification)** — three serial monitors (existence, chip-vendor scope, feature strictness) independently re-check every PR / issue / URL.
 - **Data sources** — `signals-service` MCP server first, falling back to the GitHub CLI and web fetch when needed.
-- **Phase 4 / Phase 5 (optional context)** — best-effort ecosystem activity plot, and a side-by-side comparison report when `len(chip_list) == 2`.
+- **Phase 4 / Phase 5 (optional context)** — best-effort feature-activity plot (filtered to the run's `(framework, feature)` pair — directory and input names `ecosystem_*` kept for back-compat), and a side-by-side comparison report when `len(chip_list) == 2`.
 
 When the host agent supports delegated workers (Claude Code, Cursor, or similar), Phase 1a can run in parallel. In Codex or any environment without worker delegation, use the serial fallback mode described in `SKILL.md` and `AGENTS.md`.
 
@@ -32,9 +32,9 @@ Under `~/research/{framework}_{feature}/{YYYY-MM-DD}/` (per-vendor outputs live 
 | `{vendor}/verification_existence.md` | Stage 1 audit (PR/issue/URL existence + verbatim quotes + `_meta.search_window` / `_meta.fallback_used` present), with verdict `GREEN` / `YELLOW` / `RED` and must-fix punch list. |
 | `{vendor}/verification_scope.md` | Stage 2 audit (chip-vendor scope strictness), with verdict and must-fix punch list. |
 | `{vendor}/verification_feature.md` | Stage 3 audit (feature strictness), with verdict and must-fix punch list. |
-| `ecosystem_plots/<metric>_by_vendor.{png,csv}` + `<metric>_methods.md` | Optional Phase 4 ecosystem activity charts (one set per chosen metric: `merged_prs`, `opened_issues`, `closed_issues`). Top-level path (per C8.1) — Phase 4 runs once per session, not per vendor; `vendor_group` values mirror the run's `chip_list` (per C8.2). Best-effort context outside the three-stage audit; vendor classification is derived from `scope/chip_scope_map.md` at runtime. If the user picks `ecosystem_plot_metric=skip`, the directory is not created; the run still continues to Phase 5 when `len(chip_list) == 2` (and to Phase 6 otherwise). |
-| `{vendor}/REPORT.md` | Synthesized human-readable per-vendor report — At-a-Glance dashboard table + one section per topic with a primary table optimized for dashboard ingestion (and an optional `## Ecosystem Activity Context` section when Phase 4 ran). |
-| `COMPARISON_REPORT.md` | Side-by-side comparison report rendered by Phase 5, **only when exactly two vendors were researched** (per C4). Embeds the Phase 4 ecosystem plots from top-level `ecosystem_plots/` via `[render_if_present ecosystem_plots]`. |
+| `ecosystem_plots/<metric>_by_vendor.{png,csv}` + `<metric>_methods.md` | Optional Phase 4 feature-activity charts (one set per chosen metric: `merged_prs`, `opened_issues`, `closed_issues`). Filtered to the run's `(framework, feature)` pair — every plotted PR/issue matches the user-supplied feature keyword set AND a target vendor. Top-level path (per C8.1) — Phase 4 runs once per session, not per vendor; `vendor_group` values mirror the run's `chip_list` (per C8.2). Directory name `ecosystem_plots/` kept for back-compat. Best-effort context outside the three-stage audit; vendor classification is derived from `scope/chip_scope_map.md` at runtime; the feature-keyword set is recorded verbatim in each `*_methods.md`. If the user picks `ecosystem_plot_metric=skip`, the directory is not created; the run still continues to Phase 5 when `len(chip_list) == 2` (and to Phase 6 otherwise). |
+| `{vendor}/REPORT.md` | Synthesized human-readable per-vendor report — At-a-Glance dashboard table + one section per topic with a primary table optimized for dashboard ingestion (and an optional `## Feature Activity Context` section when Phase 4 ran). |
+| `COMPARISON_REPORT.md` | Side-by-side comparison report rendered by Phase 5, **only when exactly two vendors were researched** (per C4). Embeds the Phase 4 feature-activity plots from top-level `ecosystem_plots/` via `[render_if_present ecosystem_plots]` (loop variable name kept for back-compat). |
 
 Section headings use **named topics** (e.g. `## Completed Subfeatures`, `## Open Issues`, `## Roadmap`, `## Performance Numbers`, `## Kernels & Components`) — never `Q1`/`Q2`/etc. — so dashboards can bookmark stable anchors.
 
@@ -106,11 +106,11 @@ Verify Claude Code / Cursor pick it up on the next session start. Codex reads th
 
 - Claude Code, Cursor, Codex, or another agentic coding environment
 - `gh` (GitHub CLI), authenticated — `gh auth status` should show a valid login for documented fallback paths.
-- For the optional Phase 4 ecosystem activity plot only: `python` ≥ 3.9 with `matplotlib` (`pip install matplotlib`). The Phase 1 → Phase 3 workflow has no Python dependency; only the chart renderer needs it.
+- For the optional Phase 4 feature-activity plot only: `python` ≥ 3.9 with `matplotlib` (`pip install matplotlib`). The Phase 1 → Phase 3 workflow has no Python dependency; only the chart renderer needs it.
 
 ## Use
 
-In any supported agent session, name the triple naturally:
+In any supported agent session, name the target naturally:
 
 > "Use the feature-research skill for NVIDIA + vLLM + EP"
 >
@@ -140,7 +140,7 @@ At session start (before Phase 0), the main agent runs a short four-question int
 When `len(chip_list) == 2`, the main agent additionally runs Phase 5 after Phase 4 finishes. Phase 5 is best-effort synthesis only — it does NOT re-verify refs (those are covered by each per-vendor pipeline's three-stage audit) but it does roll each vendor's `_meta.fallback_used` count into a single Verification Footer line.
 
 - Renders `templates/COMPARISON_REPORT_template.md` to `out_dir/COMPARISON_REPORT.md`.
-- **Phase 4 runs first** so the comparison report can embed the ecosystem plots from the top-level `out_dir/ecosystem_plots/` directory (per C8.1) via the `[render_if_present ecosystem_plots]` block. Per-vendor `out_dir/{vendor}/REPORT.md` files reference the same plots via the relative path `../ecosystem_plots/{metric}_by_vendor.png`.
+- **Phase 4 runs first** so the comparison report can embed the feature-activity plots from the top-level `out_dir/ecosystem_plots/` directory (per C8.1; directory name kept for back-compat) via the `[render_if_present ecosystem_plots]` block (loop variable name kept for back-compat). Per-vendor `out_dir/{vendor}/REPORT.md` files reference the same plots via the relative path `../ecosystem_plots/{metric}_by_vendor.png`.
 - Uses `{{vendor_a}}` / `{{vendor_b}}` placeholders throughout — the template caps comparison at exactly two vendors per C4. **N>2 is a known v2 work item**: for now, run separate vendor-pairs end-to-end.
 - Skipped entirely when `len(chip_list) == 1`.
 
@@ -165,14 +165,14 @@ The skill walks through:
 3. **Phase 1b** — once that vendor's `completed_subfeatures.json`, `kernels_or_components.json`, and `open_issues.json` are on disk, run one serial `analyzer_external_repos` role that derives `out_dir/{vendor}/topics/external_repo_dependencies.json` from them (verifying every external-repo ref against its OWN repo).
 4. **Phase 2** — three serial verification monitor roles per vendor in series: Stage 1 (`monitor_existence`) re-samples PR/issue/URL existence + verbatim quotes AND RED-fails any topic JSON missing `_meta.search_window` / `_meta.fallback_used`; Stage 2 (`monitor_scope`) audits chip-vendor scope; Stage 3 (`monitor_feature`) audits feature strictness. Each writes its own `verification_*.md` under `out_dir/{vendor}/`; later stages run only after the prior stage reaches GREEN/YELLOW.
 5. **Phase 3** — per vendor, apply YELLOW / AMBER / RED must-fixes from all three stages and synthesize `out_dir/{vendor}/REPORT.md`.
-6. **Phase 4 — Ecosystem activity plot (optional)** — main agent asks the user which metric(s) to chart (`merged_prs`, `opened_issues`, `closed_issues`, `all`, `skip`). For each chosen metric, one `plot_ecosystem_activity` role bulk-fetches monthly counts on `vllm-project/vllm` + `sgl-project/sglang` (configurable), classifies entries against the vendor blocks in `scope/chip_scope_map.md` (single source of truth — no separate keyword file), and writes one CSV + PNG + methods note under the top-level `out_dir/ecosystem_plots/` (per C8.1, NOT under any vendor folder — Phase 4 runs once per session, not per vendor). The CSV's `vendor_group` column matches the run's `chip_list` (per C8.2). Best-effort context outside the three-stage audit trail. If the user picks `skip`, do NOT create `out_dir/ecosystem_plots/`; continue to Phase 5 when `len(chip_list) == 2`, otherwise advance directly to Phase 6 (the Phase 5 gate is purely `len(chip_list) == 2`).
-7. **Phase 5 — Comparison synthesis** — only when `len(chip_list) == 2`. Always runs after Phase 4 (per C1) so the comparison report can embed ecosystem plots via `[render_if_present ecosystem_plots]`. Renders `templates/COMPARISON_REPORT_template.md` to `out_dir/COMPARISON_REPORT.md`. Skipped when `len(chip_list) == 1`.
-8. **Phase 6 — Hand-off** — print paths to all artifacts: per-vendor `out_dir/{vendor}/REPORT.md` + the three `verification_*.md` files + `scope.json` + topic JSONs, plus session-wide artifacts (`search_window.json`, `_signals_schema.json`, Phase 4 artifacts under `ecosystem_plots/`, and `COMPARISON_REPORT.md` when Phase 5 ran).
+6. **Phase 4 — Feature-activity plot (optional)** — main agent asks the user which metric(s) to chart (`merged_prs`, `opened_issues`, `closed_issues`, `all`, `skip`). The role then prompts the user at runtime for the feature-keyword filter (e.g. for `feature: EP`: `["EP", "expert parallel", "expert-parallel", "EPLB"]`). For each chosen metric, one `plot_ecosystem_activity` role (file/role name kept for back-compat) bulk-fetches monthly counts on `vllm-project/vllm` + `sgl-project/sglang` (configurable) **filtered to PRs/issues that mention at least one feature keyword**, classifies entries against the vendor blocks in `scope/chip_scope_map.md` (single source of truth — no separate keyword file), and writes one CSV + PNG + methods note under the top-level `out_dir/ecosystem_plots/` (per C8.1, directory name kept for back-compat; NOT under any vendor folder — Phase 4 runs once per session, not per vendor). The CSV's `vendor_group` column matches the run's `chip_list` (per C8.2). Best-effort feature-specific context outside the three-stage audit trail. If the user picks `skip`, do NOT create `out_dir/ecosystem_plots/`; continue to Phase 5 when `len(chip_list) == 2`, otherwise advance directly to Phase 6 (the Phase 5 gate is purely `len(chip_list) == 2`).
+7. **Phase 5 — Comparison synthesis** — only when `len(chip_list) == 2`. Always runs after Phase 4 (per C1) so the comparison report can embed feature-activity plots via `[render_if_present ecosystem_plots]` (loop variable name kept for back-compat). Renders `templates/COMPARISON_REPORT_template.md` to `out_dir/COMPARISON_REPORT.md`. Skipped when `len(chip_list) == 1`.
+8. **Phase 6 — Hand-off** — print paths to all artifacts: per-vendor `out_dir/{vendor}/REPORT.md` + the three `verification_*.md` files + `scope.json` + topic JSONs, plus session-wide artifacts (`search_window.json`, `_signals_schema.json`, Phase 4 feature-activity artifacts under `ecosystem_plots/`, and `COMPARISON_REPORT.md` when Phase 5 ran).
 
 ## Repo layout
 
 ```
-install.sh                          # installs symlinks/copies for Claude Code, Cursor, and Codex
+install.sh                          # installs symlinks/copies for Claude Code, Cursor, Codex, and opencode
 SKILL.md                            # entry + 6-phase orchestration contract (incl. C1 phase order, C4 2-vendor cap, C7 URL handling)
 AGENTS.md                           # Codex/project-instruction shim that points to SKILL.md
 topics/
@@ -189,13 +189,13 @@ agents/
   monitor_existence.md              # Stage-1 verification sub-agent prompt — PR/issue/URL existence + verbatim quotes + _meta.search_window / _meta.fallback_used presence
   monitor_scope.md                  # Stage-2 verification sub-agent prompt — chip-vendor scope strictness
   monitor_feature.md                # Stage-3 verification sub-agent prompt — feature-strictness audit
-  plot_ecosystem_activity.md        # Phase 4 ecosystem activity plot sub-agent prompt (optional)
+  plot_ecosystem_activity.md        # Phase 4 feature-activity plot sub-agent prompt (optional; file name kept for back-compat)
 templates/
   REPORT_template.md                # synthesized per-vendor report skeleton
   COMPARISON_REPORT_template.md     # side-by-side comparison report skeleton rendered by Phase 5 when len(chip_list) == 2 (per C4)
 scripts/
   check_compat.py                   # lightweight packaging/wording validation (host coverage, MCP-first, phase-ordering, URL-handling, per-host MCP setup, slash-command/artifact agreement, plot flag)
-  plot_ecosystem_activity.py        # Phase 4 CSV → PNG renderer (matplotlib) — unchanged CSV consumer contract per C8
+  plot_ecosystem_activity.py        # Phase 4 feature-activity CSV → PNG renderer (matplotlib; script name kept for back-compat) — unchanged CSV consumer contract per C8
 ```
 
 ## Extending
@@ -203,7 +203,7 @@ scripts/
 - **Add a framework** — edit the framework→repo map in `sources/source_playbook.md` (table near the top of the file).
 - **Add a chip vendor** — add a vendor block to `scope/chip_scope_map.md` (in-scope, out-of-scope drops, `default_scope_statement`). The Phase 4 plot role automatically picks up the new vendor's `aliases` + `in_scope` codenames as classification keywords; no separate keyword file to edit.
 - **Add a default topic** — append a topic block to `topics/default_topics.md` matching the existing format (name, `report_heading`, `prompt`, `entry_schema`).
-- **Add a repo to the ecosystem activity plot** — pass `ecosystem_plot_repos=["org/repoA", "org/repoB", ...]`. The plot script's per-`(repo, vendor)` color/marker map covers the v1 default repos; new repos fall back through the matplotlib default cycle. Override the legend prefix with `--repo-label org/repo=Label` if needed.
+- **Add a repo to the feature-activity plot** — pass `ecosystem_plot_repos=["org/repoA", "org/repoB", ...]` (input name kept for back-compat). The plot script's per-`(repo, vendor)` color/marker map covers the v1 default repos; new repos fall back through the matplotlib default cycle. Override the legend prefix with `--repo-label org/repo=Label` if needed.
 
 ## Design constraints baked in
 

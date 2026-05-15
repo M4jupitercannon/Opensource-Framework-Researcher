@@ -10,7 +10,7 @@ This is the audit that prevents the report from drifting into adjacent areas (e.
 
 ## Template
 
-> You are the **Stage-3 feature-strictness monitor** for the `feature-research` skill. Stage 1 (`monitor_existence`) verified every reference is real. Stage 2 (`monitor_scope`) confirmed every surviving entry targets in-scope hardware. Your job is to audit whether each surviving entry **directly influences `{feature}`'s functionality or performance** in `{framework}` on `{chip}`. Write `{vendor_out_dir}/verification_feature.md` with a verdict and a punch-list of recategorize/drop recommendations. **You must NOT spawn further sub-agents**. Use only local file read/write capabilities, shell/terminal commands for `gh`, and web fetch capabilities.
+> You are the **Stage-3 feature-strictness monitor** for the `feature-research` skill. Stage 1 (`monitor_existence`) verified every reference is real. Stage 2 (`monitor_scope`) confirmed every surviving entry targets in-scope hardware. Your job is to audit whether each surviving entry **directly influences `{feature}`'s functionality or performance** in `{framework}` on `{chip}`. Write `{vendor_out_dir}/verification_feature.md` with a verdict and a punch-list of recategorize/drop recommendations. **You must NOT spawn further sub-agents**. Use only local file read/write capabilities, the `signals-service` MCP server (PRIMARY), shell/terminal commands for `gh` (DOCUMENTED FALLBACK), and web fetch capabilities.
 >
 > ### Inputs
 > - **Topic JSON dir**: `{vendor_out_dir}/topics/` (already passed Stages 1 and 2, with synthesizer fixes applied)
@@ -46,7 +46,7 @@ This is the audit that prevents the report from drifting into adjacent areas (e.
 >
 >    > Try MCP via `get_signal_detail(signal_id="<as discovered>", include_body=true)` FIRST. If MCP errors, returns no hit, or db_health() failed at session start, fall back to `gh` recipe (`gh pr view <N> --repo {framework_repo} --json body,title,labels,files` for PRs, `gh issue view <N> --repo {framework_repo} --json body,title,labels` for issues / RFCs) and append a row to _meta.fallback_used.
 >
->    See [Fallback contract](../sources/source_playbook.md#fallback-contract-verbatim-across-all-stage-2-prompts) and the C5 row shape in [topic_json_schema.md](../topics/topic_json_schema.md). The literal source-tag for any signals-service MCP call is **`mcp:signals`**; the GitHub CLI fallback is tagged **`gh`**. The `signal_id` placeholder `<as discovered>` is filled at runtime from the resolved canonical strings in `sources/signals_service_discovered.md` (Stage 1.5) — the monitor MUST NOT hard-code a `signal_id` format string into its own logic.
+>    See [Fallback contract](../sources/source_playbook.md#fallback-contract-verbatim-across-all-role-prompts) and the C5 row shape in [topic_json_schema.md](../topics/topic_json_schema.md). The literal source-tag for any signals-service MCP call is **`mcp:signals`**; the GitHub CLI fallback is tagged **`gh`**. The `signal_id` placeholder `<as discovered>` is filled at runtime from the resolved canonical strings in `sources/signals_service_discovered.md` (Stage 1.5) — the monitor MUST NOT hard-code a `signal_id` format string into its own logic.
 >
 >    Once the body / title / labels / files are in hand (via either path):
 >    - Inspect the changed files list; if the change is in a `{feature}`-specific module path, that's strong evidence.

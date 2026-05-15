@@ -39,14 +39,14 @@ Placeholders use `{{double-brace}}`. Any `[loop ...]` block is rendered once per
 [/loop]
 
 [render_if_present ecosystem_plots]
-## Ecosystem Activity Context
+## Feature Activity Context
 
-This section is best-effort cross-vendor context — it is NOT covered by the three-stage monitor audit. Vendor classification is derived from `scope/chip_scope_map.md` at runtime by the Phase 4 plot role. See each `*_methods.md` for the exact data-fetch query and the resolved keyword set.
+This section shows monthly activity in the listed framework repos that mentions the run's feature `{{feature}}` AND a target vendor (one line per `(repo, vendor)`). Vendor classification is derived from `scope/chip_scope_map.md` at runtime; the feature-keyword filter comes from the user prompt at Phase 4 time. See each `*_methods.md` for the exact data-fetch query and both resolved keyword sets. This section is best-effort context — it is NOT covered by the three-stage monitor audit.
 
 [loop plot in ecosystem_plots]
 ![{{plot.title}}]({{plot.png_relpath}})
 
-Window: {{plot.window}}. Repos: {{plot.repos_summary}}. Vendor groups: {{plot.vendor_groups_summary}}. Source: `{{plot.source_tag}}` (see [`{{plot.methods_relpath}}`]({{plot.methods_relpath}})). CSV: [`{{plot.csv_relpath}}`]({{plot.csv_relpath}}).
+Window: {{plot.window}}. Repos: {{plot.repos_summary}}. Feature: `{{plot.feature}}`. Vendor groups: {{plot.vendor_groups_summary}}. Source: `{{plot.source_tag}}` (see [`{{plot.methods_relpath}}`]({{plot.methods_relpath}})). CSV: [`{{plot.csv_relpath}}`]({{plot.csv_relpath}}).
 
 [/loop]
 
@@ -173,11 +173,12 @@ Window: {{plot.window}}. Repos: {{plot.repos_summary}}. Vendor groups: {{plot.ve
   - If `_meta.fallback_used` is missing on any topic file, `monitor_existence` (Stage 1) has RED-failed already per C5, so this loop should never see a file without the field at render time.
 
 - **`ecosystem_plots` data source — SESSION-SETTING based, not filesystem-presence based.** This loop is enumerated from the session-wide setting `ecosystem_plot_metric` known at Phase 3 write time (NOT from `out_dir/ecosystem_plots/` filesystem state, because Phase 3 writes `REPORT.md` BEFORE Phase 4 writes the plots and the plot role does NOT modify per-vendor reports). The synthesizer expands `ecosystem_plot_metric` into the concrete metric list (`merged_prs`, `opened_issues`, `closed_issues`, or all three when the user picked `all`) and emits one `plot` block per metric. The referenced plot files will be written later by Phase 4 at top-level `out_dir/ecosystem_plots/`; the relative paths in the rendered REPORT.md resolve once the user reads the file (after Phase 4 completes). Phase 5 (comparison) re-uses the same Phase 4 artifacts via its own `[render_if_present ecosystem_plots]` block. For each metric in the expanded list the synthesizer constructs:
-  - `plot.title` — derived from the metric (`merged_prs` → "Monthly Merged PRs Touching <vendor1> vs <vendor2>", `opened_issues` → "Monthly Opened Issues Touching <vendor1> vs <vendor2>", `closed_issues` → "Monthly Closed Issues Touching <vendor1> vs <vendor2>"); the vendor names come from the session-wide `ecosystem_plot_vendor_groups` (which defaults to `chip_list` per C8.2).
+  - `plot.title` — derived from the metric and the run's feature (`merged_prs` → "Monthly Merged PRs Touching <feature> on <vendor1> vs <vendor2>", `opened_issues` → "Monthly Opened Issues Touching <feature> on <vendor1> vs <vendor2>", `closed_issues` → "Monthly Closed Issues Touching <feature> on <vendor1> vs <vendor2>"); the vendor names come from the session-wide `ecosystem_plot_vendor_groups` (which defaults to `chip_list` per C8.2); the feature comes from `scope.json.feature`.
+  - `plot.feature` — the run's feature tag (e.g. `EP`), sourced from `scope.json.feature`. Surfaces in the per-plot caption so a reader can tell at a glance which feature the chart is filtered to.
   - `plot.png_relpath` / `plot.csv_relpath` / `plot.methods_relpath` — paths relative to `REPORT.md`. Because per-vendor reports live at `out_dir/{vendor}/REPORT.md` and the plot artifacts live at top-level `out_dir/ecosystem_plots/` (per C8.1), the relative paths include one parent-dir hop: `../ecosystem_plots/<metric>_by_vendor.png`, `../ecosystem_plots/<metric>_by_vendor.csv`, `../ecosystem_plots/<metric>_methods.md`.
   - `plot.window` — the inclusive `YYYY-MM..YYYY-MM` window (the session-wide `ecosystem_plot_window`, which defaults to `{search_window.start_month}..{search_window.end_month}` per C2 and the Fix 4 contract).
   - `plot.repos_summary` — comma-separated `org/repo` slugs from the session-wide `ecosystem_plot_repos`.
   - `plot.vendor_groups_summary` — comma-separated vendor names from the session-wide `ecosystem_plot_vendor_groups`.
   - `plot.source_tag` — the expected data-source tag (`mcp:signals` when `MCP_SQL_USABLE=true`; `gh-search-bulk` when the per-month `gh search` fallback path will be taken). Mirrors the same placeholder in `templates/COMPARISON_REPORT_template.md` so per-vendor and comparison reports stay in sync.
 
-  The entire `## Ecosystem Activity Context` section is wrapped in `[render_if_present ecosystem_plots]` and is omitted entirely when the session-wide `ecosystem_plot_metric == skip` (the synthesizer renders no `plot` blocks and the wrapper collapses to empty). In that case the report jumps straight from the per-topic loop to `## Verification Footer` with no placeholder gap.
+  The entire `## Feature Activity Context` section is wrapped in `[render_if_present ecosystem_plots]` and is omitted entirely when the session-wide `ecosystem_plot_metric == skip` (the synthesizer renders no `plot` blocks and the wrapper collapses to empty). In that case the report jumps straight from the per-topic loop to `## Verification Footer` with no placeholder gap.

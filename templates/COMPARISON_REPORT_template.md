@@ -25,12 +25,14 @@
 [/loop]
 
 [render_if_present ecosystem_plots]
-## Ecosystem Activity Context
+## Feature Activity Context
+
+Monthly activity in the listed framework repos that mentions feature `{{feature}}` AND a target vendor — one line per `(repo, vendor)`. Vendor classification from `scope/chip_scope_map.md`; the feature-keyword filter is recorded in each `*_methods.md` (resolved at Phase 4 time from the user prompt). Best-effort context outside the three-stage audit.
 
 [loop plot in ecosystem_plots]
 ![{{plot.title}}](ecosystem_plots/{{plot.png_filename}})
 
-Window: {{plot.window}}. Repos: {{plot.repos_summary}}. Vendor groups: {{vendor_a}} vs {{vendor_b}}. Source: {{plot.source_tag}} (see [`ecosystem_plots/{{plot.methods_filename}}`](ecosystem_plots/{{plot.methods_filename}})).
+Window: {{plot.window}}. Repos: {{plot.repos_summary}}. Feature: `{{plot.feature}}`. Vendor groups: {{vendor_a}} vs {{vendor_b}}. Source: {{plot.source_tag}} (see [`ecosystem_plots/{{plot.methods_filename}}`](ecosystem_plots/{{plot.methods_filename}})).
 
 [/loop]
 [/render_if_present]
@@ -47,7 +49,7 @@ Fallback usage (mcp:signals → gh): {{vendor_a}} {{fallback_count_a}} of {{ref_
 
 ## Notes
 
-- All ecosystem-plot paths are relative to `out_dir/` (top-level `ecosystem_plots/` per C8.1, NOT under any vendor folder).
+- All feature-activity-plot paths are relative to `out_dir/` (top-level `ecosystem_plots/` per C8.1 — directory name kept for back-compat; NOT under any vendor folder).
 - All per-vendor links are relative to `out_dir/` (per-vendor outputs live under `out_dir/{vendor}/` per Phase 0 multi-vendor pathing).
 - `{{search_window.display}}` (not `{{search_window}}` raw) per C2 + the `check_comparison_template` assertion.
 - `[render_if_present ecosystem_plots]` because Phase 4 runs first per C1 (Phase 4 → Phase 5 → Phase 6).

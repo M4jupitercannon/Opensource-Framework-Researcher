@@ -55,9 +55,8 @@ def parse_frontmatter(markdown: str) -> dict[str, object]:
 
     Prefers `yaml.safe_load` so we can handle YAML-list `compatibility:` blocks
     and other structured fields. Falls back to a minimal line parser if PyYAML
-    is unavailable (with a soft warning); in fallback mode, list-shaped fields
-    are returned as the raw multi-line string and YAML-only assertions in
-    `check_skill_frontmatter` are skipped.
+    is unavailable (with a soft warning); in fallback mode, simple scalar and
+    top-level YAML-list fields are parsed without requiring PyYAML.
     """
     if not markdown.startswith("---\n"):
         fail("SKILL.md is missing YAML frontmatter")
@@ -71,15 +70,32 @@ def parse_frontmatter(markdown: str) -> dict[str, object]:
     except ImportError:
         print(
             "WARN: PyYAML not installed; parsing SKILL.md frontmatter with the "
-            "minimal line parser. YAML-only assertions (e.g. compatibility as a "
-            "list) will be skipped. Install PyYAML to enable full checks."
+            "minimal line parser. Install PyYAML to enable full YAML syntax."
         )
         fields: dict[str, object] = {}
+        current_list_key: str | None = None
         for line in raw_frontmatter.splitlines():
-            if not line or line.startswith(" ") or ":" not in line:
+            if not line:
                 continue
-            key, value = line.split(":", 1)
-            fields[key.strip()] = value.strip().strip('"')
+            stripped = line.strip()
+            if not line.startswith(" ") and ":" in line:
+                key, value = line.split(":", 1)
+                key = key.strip()
+                value = value.strip()
+                if value:
+                    fields[key] = value.strip("'\"")
+                    current_list_key = None
+                else:
+                    fields[key] = []
+                    current_list_key = key
+                continue
+            if current_list_key and stripped.startswith("- "):
+                value = stripped[2:].strip().strip("'\"")
+                existing = fields.setdefault(current_list_key, [])
+                if isinstance(existing, list):
+                    existing.append(value)
+                continue
+            current_list_key = None
         fields["_yaml_loaded"] = False
         return fields
 
@@ -127,11 +143,17 @@ def check_skill_frontmatter() -> None:
             if host not in compat_set:
                 fail(f"SKILL.md compatibility must include {host!r}")
     else:
-        # Soft fallback: substring match on the raw string form.
-        compat_str = str(compatibility)
-        for host in expected_hosts:
-            if host not in compat_str:
-                fail(f"SKILL.md compatibility must include {host!r}")
+        if isinstance(compatibility, list):
+            compat_set = {str(x).strip() for x in compatibility}
+            for host in expected_hosts:
+                if host not in compat_set:
+                    fail(f"SKILL.md compatibility must include {host!r}")
+        else:
+            # Soft fallback: substring match on the raw string form.
+            compat_str = str(compatibility)
+            for host in expected_hosts:
+                if host not in compat_str:
+                    fail(f"SKILL.md compatibility must include {host!r}")
 
 
 def check_codex_shim() -> None:
@@ -237,7 +259,7 @@ def check_phase_4_wired_in() -> None:
             fail(f"scope/chip_scope_map.md is missing required vendor block: {vendor!r}")
 
     template = read("templates/REPORT_template.md")
-    for expected in ("Ecosystem Activity Context", "ecosystem_plots", "render_if_present"):
+    for expected in ("Feature Activity Context", "ecosystem_plots", "render_if_present"):
         if expected not in template:
             fail(f"templates/REPORT_template.md does not mention {expected!r}")
 
@@ -303,7 +325,7 @@ def check_comparison_template() -> None:
         "{{vendor_a}}",
         "{{vendor_b}}",
         "{{search_window",
-        "Ecosystem Activity Context",
+        "Feature Activity Context",
         "render_if_present",
     ):
         if expected not in tpl:
@@ -329,7 +351,7 @@ def check_phase_ordering() -> None:
     phase4_match = phase4_re.search(skill)
     phase5_match = phase5_re.search(skill)
     if phase4_match is None:
-        fail("SKILL.md missing 'Phase 4' (ecosystem plot)")
+        fail("SKILL.md missing 'Phase 4' (feature-activity plot)")
     if phase5_match is None:
         fail("SKILL.md missing 'Phase 5' (comparison synthesis)")
     if phase4_match.start() > phase5_match.start():
@@ -583,19 +605,19 @@ def check_per_vendor_report_relpath() -> None:
 
 def check_comparison_template_no_empty_section() -> None:
     """templates/COMPARISON_REPORT_template.md must keep the literal
-    `## Ecosystem Activity Context` heading INSIDE its
+    `## Feature Activity Context` heading INSIDE its
     `[render_if_present ecosystem_plots]` block, so when plots are absent the
     heading vanishes along with the body.
     """
     tpl = read("templates/COMPARISON_REPORT_template.md")
-    heading = "## Ecosystem Activity Context"
+    heading = "## Feature Activity Context"
     open_marker = "[render_if_present ecosystem_plots]"
     close_marker = "[/render_if_present]"
     heading_idx = tpl.find(heading)
     if heading_idx == -1:
         fail(
             "templates/COMPARISON_REPORT_template.md missing "
-            "'## Ecosystem Activity Context' heading."
+            "'## Feature Activity Context' heading."
         )
     # Find the LAST open marker before the heading, and the FIRST close marker
     # after the heading. The heading must sit between an open/close pair.
@@ -604,7 +626,7 @@ def check_comparison_template_no_empty_section() -> None:
     if open_before == -1 or close_after == -1:
         fail(
             "templates/COMPARISON_REPORT_template.md: "
-            "'## Ecosystem Activity Context' heading is OUTSIDE a "
+            "'## Feature Activity Context' heading is OUTSIDE a "
             "'[render_if_present ecosystem_plots]' block. When plots are absent "
             "the heading renders with an empty body. Move the heading INSIDE "
             "the render_if_present block."
@@ -615,7 +637,7 @@ def check_comparison_template_no_empty_section() -> None:
     if intervening_close != -1:
         fail(
             "templates/COMPARISON_REPORT_template.md: "
-            "'## Ecosystem Activity Context' heading sits AFTER a "
+            "'## Feature Activity Context' heading sits AFTER a "
             "'[/render_if_present]' close marker and is therefore outside the "
             "ecosystem_plots block."
         )

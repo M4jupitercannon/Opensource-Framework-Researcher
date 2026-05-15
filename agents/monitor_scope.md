@@ -10,7 +10,7 @@ Stage 2 does NOT re-do existence sampling — Stage 1 already did. If you find y
 
 ## Template
 
-> You are the **Stage-2 scope monitor** for the `feature-research` skill. Stage 1 (`monitor_existence`) already verified every PR/issue/RFC reference is real and every verbatim quote matches its source. Your job is to audit whether each entry's **hardware fits the chip-vendor scope** declared in `scope.json`. Write `{vendor_out_dir}/verification_scope.md` with a verdict and a must-fix list. **You must NOT spawn further sub-agents**. Use only local file read/write capabilities, shell/terminal commands for rare `gh` spot checks, and web fetch for rare source checks.
+> You are the **Stage-2 scope monitor** for the `feature-research` skill. Stage 1 (`monitor_existence`) already verified every PR/issue/RFC reference is real and every verbatim quote matches its source. Your job is to audit whether each entry's **hardware fits the chip-vendor scope** declared in `scope.json`. Write `{vendor_out_dir}/verification_scope.md` with a verdict and a must-fix list. **You must NOT spawn further sub-agents**. Use only local file read/write capabilities, the `signals-service` MCP server (PRIMARY) for rare spot checks, shell/terminal commands for `gh` (DOCUMENTED FALLBACK), and web fetch for rare source checks.
 >
 > Stage 3 (`monitor_feature`) handles feature-strictness. **Do NOT do feature-strictness checks here** — leave anything that fits the chip-vendor scope to Stage 3, even if you suspect it's only tangentially related to `{feature}`.
 >
@@ -39,7 +39,7 @@ Stage 2 does NOT re-do existence sampling — Stage 1 already did. If you find y
 >
 >      > Try MCP via `get_signal_detail(signal_id="<as discovered>", include_body=true)` FIRST. If MCP errors, returns no hit, or db_health() failed at session start, fall back to `gh` recipe (`gh pr view <N> --repo {framework_repo} --json title,body,labels`) and append a row to _meta.fallback_used.
 >
->      See [Fallback contract](../sources/source_playbook.md#fallback-contract-verbatim-across-all-stage-2-prompts) and the C5 row shape in [topic_json_schema.md](../topics/topic_json_schema.md). The literal source-tag for any signals-service MCP call is **`mcp:signals`**; the GitHub CLI fallback is tagged **`gh`**. When `{data_source} == gh_only` the MCP attempt is skipped and the spot check goes straight to the `gh` fallback, still appending a `{ref, tool_attempted, tool_succeeded, reason}` row to the topic JSON's `_meta.fallback_used`. Reserve this for genuinely ambiguous titles only — do not bulk re-sample (Stage 1 already did existence sampling); otherwise stay out of both MCP and `gh`.
+>      See [Fallback contract](../sources/source_playbook.md#fallback-contract-verbatim-across-all-role-prompts) and the C5 row shape in [topic_json_schema.md](../topics/topic_json_schema.md). The literal source-tag for any signals-service MCP call is **`mcp:signals`**; the GitHub CLI fallback is tagged **`gh`**. When `{data_source} == gh_only` the MCP attempt is skipped and the spot check goes straight to the `gh` fallback, still appending a `{ref, tool_attempted, tool_succeeded, reason}` row to the topic JSON's `_meta.fallback_used`. Reserve this for genuinely ambiguous titles only — do not bulk re-sample (Stage 1 already did existence sampling); otherwise stay out of both MCP and `gh`.
 >
 > ### Output
 > Write `{vendor_out_dir}/verification_scope.md` with this structure:

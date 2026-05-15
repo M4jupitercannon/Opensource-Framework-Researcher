@@ -23,7 +23,7 @@ Configure `signals-service` in your host's MCP config before running the skill. 
 
 If any path differs on your installed host version, update the host's MCP config according to that host's documentation; the skill only requires that the server be reachable under the registered name `signals-service`.
 
-**When**: any claim about a PR, issue, or release in the framework's repo (Phase 1 fetches, Phase 2 monitor re-samples, Phase 4 ecosystem activity time-series). For external-repo refs (Phase 1b analyzer), still try `mcp:signals` first since signals-service indexes many ecosystem repos; on miss, fall back to `gh` per the contract.
+**When**: any claim about a PR, issue, or release in the framework's repo (Phase 1 fetches, Phase 2 monitor re-samples, Phase 4 feature-activity time-series). For external-repo refs (Phase 1b analyzer), still try `mcp:signals` first since signals-service indexes many ecosystem repos; on miss, fall back to `gh` per the contract.
 
 ### Resolved recipes (from Stage 1.5 probe)
 
@@ -87,7 +87,7 @@ Both flags fold into a single `data_source` variable: `mcp_first` when either fl
 5. **Phase 4 shape probe.** Try one Phase 4–shaped raw-rows query against the discovered schema (per C8 — RAW rows over the full window, NOT pre-aggregated). On success set `MCP_SQL_USABLE=True`; on failure set False and record the error string.
 6. **Persist.** Persist the discovered values + both flags to `out_dir/_signals_schema.json` and to the committed `sources/signals_service_discovered.md` (Stage 1.5 deliverable). Stage 2 sub-agents reference these for real strings.
 
-### Fallback contract (verbatim across all Stage-2 prompts)
+### Fallback contract (verbatim across all role prompts)
 
 > Try MCP via <recipe> FIRST. If MCP errors, returns no hit, or db_health() failed at session start, fall back to <gh recipe> and append a row to _meta.fallback_used.
 
@@ -106,7 +106,7 @@ For Phase 4 metrics the per-metric bucket field is unchanged and per-metric:
 
 ### Phase 4 raw-rows pattern (per C8)
 
-The single `execute_sql` per `(repo, metric)` returns **RAW rows** `(number, title, labels, mergedAt|createdAt|closedAt, repo)` over the full `search_window` — NOT pre-aggregated. The plot agent then runs the **existing client-side classification** (title + labels keyword match against `scope/chip_scope_map.md`, with `BOTH` / `NEITHER` semantics intact), buckets by month, and emits the same CSV shape `month,repo,vendor_group,count` that `scripts/plot_ecosystem_activity.py` consumes today.
+The single `execute_sql` per `(repo, metric)` returns **RAW rows** `(number, title, labels, mergedAt|createdAt|closedAt, repo)` over the full `search_window` — NOT pre-aggregated. The plot agent then runs client-side classification (title + labels keyword match against `scope/chip_scope_map.md`): cross-vendor rows are counted once under each matched vendor, and hardware-agnostic rows are dropped from the CSV. The CSV shape remains `month,repo,vendor_group,count`; `BOTH` / `NEITHER` literals are no longer emitted.
 
 Net change: O(months × repos × metrics) round-trips → O(repos × metrics) round-trips, identical classification logic, identical CSV schema. Gated by `MCP_SQL_USABLE`; when False, the Phase 4 SQL raw-rows path (used by the plot role) uses the Section-6 `gh search` per-month loop as the only path. The resolved Phase 4 SQL template (with real column names interpolated) lives in `sources/signals_service_discovered.md`.
 
@@ -213,7 +213,7 @@ gh search code 'in:file repo:SemiAnalysisAI/InferenceX <feature>' --limit 50
 
 ---
 
-## 6. `gh-search-bulk` — ecosystem activity time-series queries (Phase 4)
+## 6. `gh-search-bulk` — feature-activity time-series queries (Phase 4)
 
 **When**: the Phase 4 `plot_ecosystem_activity` role bulk-fetching merged PRs / opened issues / closed issues per `(repo, month)` to build a time-series CSV. **Do NOT** use these recipes for per-feature research in Phase 1 — those topics use the per-PR `gh pr view` / `gh issue view` flow above.
 
@@ -253,7 +253,7 @@ gh api 'search/issues?q=repo:<org/repo>+is:pr+is:merged+merged:YYYY-MM-DD..YYYY-
 
 **Pagination + 1000-hit ceiling.** GitHub's Search API caps at ~1000 results per query. If a single (repo, month) bucket would exceed that, split the month into halves on the same qualifier (`merged:YYYY-MM-01..YYYY-MM-15` then `merged:YYYY-MM-16..YYYY-MM-LAST`) and union the result sets, deduping by `number`.
 
-**Classification.** Use entry `title` and each `labels[*].name` only — do NOT bulk-fetch bodies (would multiply API cost ~100×). Entries matching multiple vendor groups land in CSV row `BOTH`; entries matching none land in `NEITHER`. Both are excluded from the default plot but counted in `<metric>_methods.md`.
+**Classification.** Use entry `title` and each `labels[*].name` only — do NOT bulk-fetch bodies (would multiply API cost ~100×). Entries matching multiple vendor groups emit one CSV row per matched vendor; entries matching no vendor group are dropped from the CSV. Record both the cross-vendor count and the dropped hardware-agnostic count in `<metric>_methods.md`.
 
 ---
 

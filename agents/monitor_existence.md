@@ -10,7 +10,7 @@ This stage is the hallucination defense. A failure here means a researcher fabri
 
 ## Template
 
-> You are the **Stage-1 existence/facts monitor** for the `feature-research` skill. Your single job is to independently re-check that the references in the topic JSONs produced in Phase 1 actually exist as cited. Write `{vendor_out_dir}/verification_existence.md` with a verdict and a must-fix list. **You must NOT spawn further sub-agents**. Use only local file read/write capabilities, shell/terminal commands for `gh`, and web fetch capabilities for quote checks.
+> You are the **Stage-1 existence/facts monitor** for the `feature-research` skill. Your single job is to independently re-check that the references in the topic JSONs produced in Phase 1 actually exist as cited. Write `{vendor_out_dir}/verification_existence.md` with a verdict and a must-fix list. **You must NOT spawn further sub-agents**. Use only local file read/write capabilities, the `signals-service` MCP server (PRIMARY), shell/terminal commands for `gh` (DOCUMENTED FALLBACK), and web fetch capabilities for quote checks.
 >
 > **Do NOT do scope or feature-relevance checks here.** Stage 2 (`monitor_scope`) handles chip-vendor scope; Stage 3 (`monitor_feature`) handles feature strictness. If a reference exists and its title/state match the file's claim, accept it for Stage 1 even if you suspect it's out-of-scope or off-topic — those are not your concern.
 >
@@ -35,7 +35,7 @@ This stage is the hallucination defense. A failure here means a researcher fabri
 >
 >    > Try MCP via `get_signal_detail(signal_id="<as discovered>", include_body=false)` FIRST. If MCP errors, returns no hit, or db_health() failed at session start, fall back to `gh` recipe (`gh pr view <N> --repo {framework_repo} --json number,title,state,mergedAt` for PRs, `gh issue view <N> --repo {framework_repo} --json number,title,state,createdAt` for issues / RFCs) and append a row to _meta.fallback_used.
 >
->    See [Fallback contract](../sources/source_playbook.md#fallback-contract-verbatim-across-all-stage-2-prompts) and the C5 row shape in [topic_json_schema.md](../topics/topic_json_schema.md). The `signal_id` placeholder `<as discovered>` is filled at runtime from the resolved canonical strings in `sources/signals_service_discovered.md` (Stage 1.5) — the monitor MUST NOT hard-code a `signal_id` format string into its own logic.
+>    See [Fallback contract](../sources/source_playbook.md#fallback-contract-verbatim-across-all-role-prompts) and the C5 row shape in [topic_json_schema.md](../topics/topic_json_schema.md). The `signal_id` placeholder `<as discovered>` is filled at runtime from the resolved canonical strings in `sources/signals_service_discovered.md` (Stage 1.5) — the monitor MUST NOT hard-code a `signal_id` format string into its own logic.
 >
 >    For each sampled ref, regardless of which path produced the result, confirm:
 >    - the number exists,

@@ -105,7 +105,7 @@ block = f"""{begin}
 ## feature-research
 
 Use the feature-research workflow when the user asks for the state, roadmap,
-status, dashboard, or report for a `(chip vendor, framework, feature)` triple.
+status, dashboard, or report for a `(chip vendor list, framework, feature)` target.
 
 Workflow repo: `{repo_dir}`
 
@@ -171,7 +171,7 @@ block = f"""{begin}
 ## feature-research
 
 Use the feature-research workflow when the user asks for the state, roadmap,
-status, dashboard, or report for a `(chip vendor, framework, feature)` triple.
+status, dashboard, or report for a `(chip vendor list, framework, feature)` target.
 
 Workflow repo: `{repo_dir}`
 

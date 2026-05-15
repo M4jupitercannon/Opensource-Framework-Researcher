@@ -32,7 +32,7 @@ The main agent uses this template for one delegated worker in parallel sub-agent
 >
 > > Try MCP via <recipe> FIRST. If MCP errors, returns no hit, or db_health() failed at session start, fall back to `gh` recipe and append a row to _meta.fallback_used.
 >
-> See [Fallback contract](../sources/source_playbook.md#fallback-contract-verbatim-across-all-stage-2-prompts) and the C5 row shape in [topic_json_schema.md](../topics/topic_json_schema.md). The literal source-tag for any signals-service MCP call is **`mcp:signals`** and for the `gh` fallback is **`gh`**. Tag every source you used in `_meta.sources_used` using the source IDs from the playbook (e.g. `["mcp:signals", "gh", "WebFetch:docs.vllm.ai", "inferencex"]`). Supplement MCP / `gh` with web fetch (vendor docs / RFC pages / framework release notes), web search (blog discovery), MLPerf, and SemiAnalysis InferenceX as appropriate.
+> See [Fallback contract](../sources/source_playbook.md#fallback-contract-verbatim-across-all-role-prompts) and the C5 row shape in [topic_json_schema.md](../topics/topic_json_schema.md). The literal source-tag for any signals-service MCP call is **`mcp:signals`** and for the `gh` fallback is **`gh`**. Tag every source you used in `_meta.sources_used` using the source IDs from the playbook (e.g. `["mcp:signals", "gh", "WebFetch:docs.vllm.ai", "inferencex"]`). Supplement MCP / `gh` with web fetch (vendor docs / RFC pages / framework release notes), web search (blog discovery), MLPerf, and SemiAnalysis InferenceX as appropriate.
 >
 > #### MCP recipes (resolved values live in [`sources/signals_service_discovered.md`](../sources/signals_service_discovered.md))
 >
@@ -51,7 +51,7 @@ The main agent uses this template for one delegated worker in parallel sub-agent
 >
 > # per-ref body / state fetch (used to confirm a hit before write)
 > get_signal_detail(
->     signal_id="github:<org/repo>:<issue|pr>:<number>",
+>     signal_id="<as discovered from sources/signals_service_discovered.md>",
 >     include_body=false
 > )
 > ```

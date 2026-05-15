@@ -27,7 +27,7 @@ This is a separate template from `agents/researcher.md` because (a) its inputs i
 >
 > > Try MCP via <recipe> FIRST. If MCP errors, returns no hit, or db_health() failed at session start, fall back to `gh` recipe and append a row to _meta.fallback_used.
 >
-> See [Fallback contract](../sources/source_playbook.md#fallback-contract-verbatim-across-all-stage-2-prompts) and the C5 row shape in [topic_json_schema.md](../topics/topic_json_schema.md). The literal source-tag for any signals-service MCP call is **`mcp:signals`** and for the `gh` fallback is **`gh`**. Tag every source you used in `_meta.sources_used` (e.g. `["completed_subfeatures.json", "kernels_or_components.json", "open_issues.json", "mcp:signals", "gh", "WebSearch"]`).
+> See [Fallback contract](../sources/source_playbook.md#fallback-contract-verbatim-across-all-role-prompts) and the C5 row shape in [topic_json_schema.md](../topics/topic_json_schema.md). The literal source-tag for any signals-service MCP call is **`mcp:signals`** and for the `gh` fallback is **`gh`**. Tag every source you used in `_meta.sources_used` (e.g. `["completed_subfeatures.json", "kernels_or_components.json", "open_issues.json", "mcp:signals", "gh", "WebSearch"]`).
 >
 > #### MCP recipes (resolved values live in [`sources/signals_service_discovered.md`](../sources/signals_service_discovered.md))
 >
@@ -37,7 +37,7 @@ This is a separate template from `agents/researcher.md` because (a) its inputs i
 > # per-ref body/state fetch (framework PRs in step 2(a), framework issues in step 2(c),
 > # external-repo PRs/issues in step 4 — same recipe, different repo slug)
 > get_signal_detail(
->     signal_id="github:<org/repo>:<issue|pr>:<number>",
+>     signal_id="<as discovered from sources/signals_service_discovered.md>",
 >     include_body=true
 > )
 > ```

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
-"""Render an ecosystem-activity time-series PNG from a CSV produced by the
-`plot_ecosystem_activity` Phase 4 sub-agent role.
+"""Render a feature-specific activity time-series PNG from a CSV produced by
+the ``plot_ecosystem_activity`` Phase 4 sub-agent role.
 
 Input CSV schema (header required):
     month,repo,vendor_group,count
@@ -9,7 +9,9 @@ Where:
 - ``month`` is ``YYYY-MM``,
 - ``repo`` is a full ``org/repo`` slug,
 - ``vendor_group`` is one of the vendor names from ``scope/chip_scope_map.md``
-  (e.g. ``AMD``, ``NVIDIA``) plus the literals ``BOTH`` and ``NEITHER``,
+  (e.g. ``AMD``, ``NVIDIA``); the upstream role no longer emits the legacy
+  ``BOTH`` / ``NEITHER`` literals (cross-vendor rows are counted under each
+  matched vendor; HW-agnostic rows are dropped),
 - ``count`` is an integer (a value of ``-1`` flags an upstream ``gh search``
   failure for that bucket and is skipped).
 
@@ -20,23 +22,24 @@ Upstream data-source variability (this script is unchanged):
     upstream Phase 4 sub-agent (``agents/plot_ecosystem_activity.md``):
     when ``MCP_SQL_USABLE=true`` (see ``sources/signals_service_discovered.md``)
     the agent issues ONE ``execute_sql`` per ``(repo, metric)`` returning
-    RAW rows over the full window and classifies them client-side; when
-    ``MCP_SQL_USABLE=false`` it falls back to the existing per-month
-    per-repo ``gh search`` loop. **Either upstream path emits the same
-    CSV schema**, so this script needs no changes either way.
+    RAW rows over the full window (filtered to the run's feature keywords)
+    and classifies them client-side; when ``MCP_SQL_USABLE=false`` it falls
+    back to the existing per-month per-repo ``gh search`` loop with the
+    feature OR-clause appended. **Either upstream path emits the same CSV
+    schema**, so this script needs no changes either way.
 
     Per C8.1 the CSV and PNG live at the top-level
     ``{session_out_dir}/ecosystem_plots/`` (NOT under any vendor folder — Phase 4
     runs once per session, not per vendor). Per C8.2 the ``vendor_group``
     column values match the run's ``chip_list`` (e.g. ``AMD``, ``NVIDIA``
     by default, or ``Intel``, ``AMD`` when the user passes
-    ``chip=[Intel, AMD]``); ``BOTH`` / ``NEITHER`` are CSV-only sentinels
-    that the renderer drops.
+    ``chip=[Intel, AMD]``).
 
-The script plots one line per ``(repo, vendor_group)`` pair where
-``vendor_group`` is in the canonical vendor list (``AMD``, ``NVIDIA``).
-``BOTH`` and ``NEITHER`` rows are intentionally excluded — they live in
-the CSV for downstream re-classification but are not plotted.
+The script plots one line per ``(repo, vendor_group)`` pair. Pass
+``--feature <tag>`` to interpolate the run's feature into the chart title;
+omit it for the legacy generic title. Any ``vendor_group`` value not in
+``--vendor-group`` (defaults to ``AMD`` and ``NVIDIA``) is silently dropped,
+which also handles legacy CSVs that still contain ``BOTH`` / ``NEITHER``.
 
 The visual style mirrors the reference chart: line + marker per series,
 per-point integer labels, legend in the upper-left, and a wrapped footer
@@ -59,6 +62,13 @@ PLOTTED_VENDOR_GROUPS = ("AMD", "NVIDIA")
 
 
 METRIC_DEFAULT_TITLES = {
+    "merged_prs": "Monthly Merged PRs Touching {feature} on {vendors}",
+    "opened_issues": "Monthly Opened Issues Touching {feature} on {vendors}",
+    "closed_issues": "Monthly Closed Issues Touching {feature} on {vendors}",
+}
+
+
+METRIC_LEGACY_TITLES = {
     "merged_prs": "Monthly Merged PRs Touching {vendors}",
     "opened_issues": "Monthly Opened Issues Touching {vendors}",
     "closed_issues": "Monthly Closed Issues Touching {vendors}",
@@ -122,10 +132,11 @@ def build_series(
 ) -> tuple[list[str], dict[tuple[str, str], dict[str, int]]]:
     """Return (sorted_months, {(repo, vendor): {month: count}}).
 
-    Rows where ``vendor_group`` is not in ``vendor_groups`` (e.g. ``BOTH`` /
-    ``NEITHER``) or where ``count`` is negative (upstream ``gh search``
-    error sentinel) are skipped silently for plotting; the methods note
-    surfaces them.
+    Rows where ``vendor_group`` is not in ``vendor_groups`` (legacy ``BOTH``
+    / ``NEITHER`` literals from older runs, or vendor names not requested
+    via ``--vendor-group``) or where ``count`` is negative (upstream
+    ``gh search`` error sentinel) are skipped silently for plotting; the
+    methods note surfaces them.
     """
 
     months: set[str] = set()
@@ -258,17 +269,27 @@ def _axis_label_for_title(title: str) -> str:
     return "Merged PRs / month"
 
 
-def default_title(metric: str, vendor_groups: tuple[str, ...], vendor_labels: dict[str, str]) -> str:
-    template = METRIC_DEFAULT_TITLES.get(metric)
+def default_title(
+    metric: str,
+    vendor_groups: tuple[str, ...],
+    vendor_labels: dict[str, str],
+    feature: str | None = None,
+) -> str:
+    pretty = " vs ".join(label_for_vendor(v, vendor_labels) for v in vendor_groups)
+    if feature:
+        template = METRIC_DEFAULT_TITLES.get(metric)
+        if template is None:
+            return f"Monthly Activity for {feature} ({metric})"
+        return template.format(feature=feature, vendors=pretty)
+    template = METRIC_LEGACY_TITLES.get(metric)
     if template is None:
         return f"Monthly Activity ({metric})"
-    pretty = " vs ".join(label_for_vendor(v, vendor_labels) for v in vendor_groups)
     return template.format(vendors=pretty)
 
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
-        description="Render an ecosystem-activity time-series PNG from a Phase 4 CSV.",
+        description="Render a feature-specific activity time-series PNG from a Phase 4 CSV.",
     )
     parser.add_argument(
         "--metric",
@@ -282,6 +303,16 @@ def main(argv: list[str] | None = None) -> int:
         "--title",
         default=None,
         help="Overrides the default title for --metric.",
+    )
+    parser.add_argument(
+        "--feature",
+        default=None,
+        help=(
+            "Feature tag from the run's scope.json (e.g. 'EP'). When set, "
+            "the default title becomes 'Monthly <metric> Touching <feature> on <vendors>'. "
+            "Optional for back-compat: omitting it falls back to the legacy "
+            "non-feature-aware title."
+        ),
     )
     parser.add_argument(
         "--vendor-group",
@@ -320,7 +351,7 @@ def main(argv: list[str] | None = None) -> int:
     repo_labels = parse_kv_list(args.repo_label)
     rows = load_rows(args.csv)
     months, series = build_series(rows, vendor_groups)
-    title = args.title or default_title(args.metric, vendor_groups, vendor_labels)
+    title = args.title or default_title(args.metric, vendor_groups, vendor_labels, feature=args.feature)
     series_totals = render(
         months,
         series,
