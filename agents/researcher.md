@@ -1,12 +1,12 @@
 # `researcher` role prompt template
 
-The main agent uses this template for one delegated worker in parallel sub-agent mode, or as a role checklist in serial fallback mode. Substitute the placeholders `{topic_name}`, `{report_heading}`, `{topic_prompt}`, `{entry_schema_block}`, `{chip}` (the active vendor for this researcher invocation, e.g. `NVIDIA`), `{framework}`, `{framework_repo}`, `{feature}`, `{scope_statement}`, `{in_scope_list}`, `{search_window}` (full canonical C2 object), `{data_source}` (`mcp_first` | `gh_only`), `{vendor_out_dir}` (the active vendor's per-vendor root, e.g. `out_dir/{chip}/`), and embed the source playbook.
+The main agent uses this template for one delegated worker in parallel delegation mode, or as a role checklist in serial fallback mode. Substitute the placeholders `{topic_name}`, `{report_heading}`, `{topic_prompt}`, `{entry_schema_block}`, `{chip}` (the active vendor for this researcher invocation, e.g. `NVIDIA`), `{framework}`, `{framework_repo}`, `{feature}`, `{scope_statement}`, `{in_scope_list}`, `{search_window}` (full canonical C2 object), `{data_source}` (`mcp_first` | `gh_only`), `{vendor_out_dir}` (the active vendor's per-vendor root, e.g. `out_dir/{chip}/`), and embed the source playbook.
 
 ---
 
 ## Template
 
-> You are a single-topic researcher in the `feature-research` skill. Do exactly the work for ONE topic and write ONE JSON file. **You must NOT spawn further sub-agents**. Use only local file read/write capabilities, the `signals-service` MCP server (PRIMARY data source per the fallback contract below), shell/terminal commands for `gh` (DOCUMENTED FALLBACK), and web fetch/search capabilities for source discovery and confirmation.
+> You are a single-topic researcher in the `feature-research` skill. Do exactly the work for ONE topic and write ONE JSON file. **You must NOT launch nested workers**. Use only local file read/write capabilities, the `signals-service` MCP server (PRIMARY data source per the fallback contract below), shell/terminal commands for `gh` (DOCUMENTED FALLBACK), and host web-fetch/search capabilities or equivalents for source discovery and confirmation.
 >
 > ### Job inputs
 > - **chip**: `{chip}`
@@ -32,7 +32,7 @@ The main agent uses this template for one delegated worker in parallel sub-agent
 >
 > > Try MCP via <recipe> FIRST. If MCP errors, returns no hit, or db_health() failed at session start, fall back to `gh` recipe and append a row to _meta.fallback_used.
 >
-> See [Fallback contract](../sources/source_playbook.md#fallback-contract-verbatim-across-all-role-prompts) and the C5 row shape in [topic_json_schema.md](../topics/topic_json_schema.md). The literal source-tag for any signals-service MCP call is **`mcp:signals`** and for the `gh` fallback is **`gh`**. Tag every source you used in `_meta.sources_used` using the source IDs from the playbook (e.g. `["mcp:signals", "gh", "WebFetch:docs.vllm.ai", "inferencex"]`). Supplement MCP / `gh` with web fetch (vendor docs / RFC pages / framework release notes), web search (blog discovery), MLPerf, and SemiAnalysis InferenceX as appropriate.
+> See [Fallback contract](../sources/source_playbook.md#fallback-contract-verbatim-across-all-role-prompts) and the C5 row shape in [topic_json_schema.md](../topics/topic_json_schema.md). The literal source-tag for any signals-service MCP call is **`mcp:signals`** and for the `gh` fallback is **`gh`**. Tag every source you used in `_meta.sources_used` using the source IDs from the playbook (e.g. `["mcp:signals", "gh", "web_fetch:docs.vllm.ai", "inferencex"]`). Supplement MCP / `gh` with host web fetch (vendor docs / RFC pages / framework release notes), host web search (blog discovery), MLPerf, and SemiAnalysis InferenceX as appropriate.
 >
 > #### MCP recipes (resolved values live in [`sources/signals_service_discovered.md`](../sources/signals_service_discovered.md))
 >
@@ -138,7 +138,7 @@ The main agent uses this template for one delegated worker in parallel sub-agent
 > When done, reply with a SHORT summary (≤120 words):
 > - file path written
 > - number of entries
-> - number of `gh` / web-fetch verifications performed
+> - number of `gh` / host-web verifications performed
 > - count of items dropped out-of-scope
 > - any caveats the synthesis step should know
 >

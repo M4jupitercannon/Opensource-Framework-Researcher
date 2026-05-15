@@ -1,6 +1,6 @@
 # Default research topics
 
-Six topics, generalized from `~/vllm_research/v2/`. Each topic has a stable name (used as the JSON filename and as the report `##` heading), a prompt template the main agent injects into the researcher sub-agent, and an entry schema.
+Six topics, generalized from a prior feature-research workflow. Each topic has a stable name (used as the JSON filename and as the report `##` heading), a prompt template the main agent injects into the researcher sub-agent, and an entry schema.
 
 The main agent passes one topic per researcher sub-agent. To override, the user supplies a `topics:` argument that is either a subset of these names or a list of custom topic objects of the same shape.
 
@@ -94,7 +94,7 @@ Section heading rule: when the report is synthesized, the `report_heading` field
 
 - **report_heading**: `Performance Numbers`
 - **prompt**:
-  > For each subfeature of `{feature}` in `{framework}` on `{chip}`, find published performance numbers — typically from the body of merged perf PRs, or from vendor blogs / MLPerf submissions / SemiAnalysis InferenceX. EVERY number must be supported by a verbatim source quote from the cited URL/PR body. Cross-check by fetching the cited source via the `signals-service` MCP server first (`get_signal_detail` with `include_body=true` per the recipe in `agents/researcher.md`); fall back to `gh pr view --json body` per the documented fallback contract in `sources/source_playbook.md` Section 0, or `WebFetch` for non-PR sources. Paste the relevant passage into `source_quote`. Drop entries whose hardware is out of scope.
+  > For each subfeature of `{feature}` in `{framework}` on `{chip}`, find published performance numbers — typically from the body of merged perf PRs, or from vendor blogs / MLPerf submissions / SemiAnalysis InferenceX. EVERY number must be supported by a verbatim source quote from the cited URL/PR body. Cross-check by fetching the cited source via the `signals-service` MCP server first (`get_signal_detail` with `include_body=true` per the recipe in `agents/researcher.md`); fall back to `gh pr view --json body` per the documented fallback contract in `sources/source_playbook.md` Section 0, or the host web-fetch capability for non-PR sources. Paste the relevant passage into `source_quote`. Drop entries whose hardware is out of scope.
 - **entry schema**:
   ```jsonc
   {

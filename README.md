@@ -1,6 +1,6 @@
 # Opensource-Framework-Researcher
 
-A cross-agent research workflow for Claude Code, Cursor, Codex, and opencode. It investigates a **(chip vendor list, framework, feature)** target in the open-source AI inference / training ecosystem and emits dashboard-ready outputs.
+A host-neutral research workflow for Claude Code, Cursor, Codex, and opencode. It investigates a **(chip vendor list, framework, feature)** target in the open-source AI inference / training ecosystem and emits dashboard-ready outputs.
 
 Examples of targets this skill handles:
 
@@ -32,7 +32,7 @@ Under `~/research/{framework}_{feature}/{YYYY-MM-DD}/` (per-vendor outputs live 
 | `{vendor}/verification_existence.md` | Stage 1 audit (PR/issue/URL existence + verbatim quotes + `_meta.search_window` / `_meta.fallback_used` present), with verdict `GREEN` / `YELLOW` / `RED` and must-fix punch list. |
 | `{vendor}/verification_scope.md` | Stage 2 audit (chip-vendor scope strictness), with verdict and must-fix punch list. |
 | `{vendor}/verification_feature.md` | Stage 3 audit (feature strictness), with verdict and must-fix punch list. |
-| `ecosystem_plots/<metric>_by_vendor.{png,csv}` + `<metric>_methods.md` | Optional Phase 4 feature-activity charts (one set per chosen metric: `merged_prs`, `opened_issues`, `closed_issues`). Filtered to the run's `(framework, feature)` pair — every plotted PR/issue matches the user-supplied feature keyword set AND a target vendor. Top-level path (per C8.1) — Phase 4 runs once per session, not per vendor; `vendor_group` values mirror the run's `chip_list` (per C8.2). Directory name `ecosystem_plots/` kept for back-compat. Best-effort context outside the three-stage audit; vendor classification is derived from `scope/chip_scope_map.md` at runtime; the feature-keyword set is recorded verbatim in each `*_methods.md`. If the user picks `ecosystem_plot_metric=skip`, the directory is not created; the run still continues to Phase 5 when `len(chip_list) == 2` (and to Phase 6 otherwise). |
+| `ecosystem_plots/<metric>_by_vendor.{png,csv}` + `<metric>_methods.md` | Optional Phase 4 feature-activity charts (one set per chosen metric: `merged_prs`, `opened_issues`, `closed_issues`). By default, these are simple statistics gathered from the audited Phase 1-3 topic JSONs, with no second MCP/GitHub fetch. Top-level path (per C8.1) — Phase 4 runs once per session, not per vendor; `vendor_group` values mirror the run's `chip_list` (per C8.2). Directory name `ecosystem_plots/` kept for back-compat. If `ecosystem_plot_source=fresh_search`, Phase 4 instead performs the expanded keyword-filtered MCP/`gh` ecosystem search and records the feature-keyword set in each `*_methods.md`. If the user picks `ecosystem_plot_metric=skip`, the directory is not created; the run still continues to Phase 5 when `len(chip_list) == 2` (and to Phase 6 otherwise). |
 | `{vendor}/REPORT.md` | Synthesized human-readable per-vendor report — At-a-Glance dashboard table + one section per topic with a primary table optimized for dashboard ingestion (and an optional `## Feature Activity Context` section when Phase 4 ran). |
 | `COMPARISON_REPORT.md` | Side-by-side comparison report rendered by Phase 5, **only when exactly two vendors were researched** (per C4). Embeds the Phase 4 feature-activity plots from top-level `ecosystem_plots/` via `[render_if_present ecosystem_plots]` (loop variable name kept for back-compat). |
 
@@ -49,7 +49,7 @@ Section headings use **named topics** (e.g. `## Completed Subfeatures`, `## Open
 | `kernels_or_components` | Kernels & Components | Low-level kernels / libraries on the critical path (DeepGEMM, CUTLASS, FlashInfer, hipBLASLt, …). |
 | `external_repo_dependencies` | External Repo Dependencies | External open-source repos each completed subfeature depends on or contributes back to (kernel libs, comm libs, etc.). Produced by a Phase-1b analyzer, not a generic researcher. |
 
-Note: `external_repo_dependencies` is produced by an analyzer sub-agent in Phase 1b, not a generic Phase-1a researcher. It requires `completed_subfeatures`, `kernels_or_components`, and `open_issues` to exist on disk first.
+Note: `external_repo_dependencies` is produced by an analyzer role in Phase 1b, not a generic Phase-1a researcher. It requires `completed_subfeatures`, `kernels_or_components`, and `open_issues` to exist on disk first.
 
 Topics are user-configurable: pass a subset to limit scope, or supply custom topic specs (name + prompt + entry schema).
 
@@ -58,9 +58,9 @@ Topics are user-configurable: pass a subset to limit scope, or supply custom top
 | Source | Role | Notes |
 |---|---|---|
 | `signals-service` MCP server (source tag `mcp:signals`) | **Primary** for PR / issue / RFC lookups in the framework repo. | Referenced by its registered name only — the URL is configured at install/host time in your host's MCP config (per-host paths listed in the **Per-host MCP setup** table in `sources/source_playbook.md`) and is **not** baked into committed docs (per C7). See **Data sources / MCP-first** below for the pre-flight + capability-flag contract. |
-| `gh` (GitHub CLI, source tag `gh`) | **Documented fallback** when MCP errors, returns no hit, or `db_health()` failed at session start. | Falls produce one row in each affected topic JSON's `_meta.fallback_used` array (per C5). |
-| `WebFetch` | Vendor docs, framework release notes, RFC pages. | |
-| `WebSearch` | Discovery of blogs / announcements. | |
+| `gh` (GitHub CLI, source tag `gh`) | **Documented fallback** when MCP errors, returns no hit, or `db_health()` failed at session start. | Fallbacks produce one row in each affected topic JSON's `_meta.fallback_used` array (per C5). |
+| Host web-fetch capability or equivalent | Vendor docs, framework release notes, RFC pages. | Source tag: `web_fetch:<host>`. |
+| Host web-search capability or equivalent | Discovery of blogs / announcements. | Source tag: `web_search`. |
 | MLPerf | Public chip-vs-chip benchmark cross-check. | |
 | [SemiAnalysis InferenceX](https://github.com/SemiAnalysisAI/InferenceX) | Third-party perf reference. | |
 
@@ -93,7 +93,7 @@ By default, `install.sh` installs symlinks for Claude Code, Cursor, Codex, and o
 ./install.sh --target opencode
 ```
 
-Use `--copy` if you want independent copies instead of symlinks. Use `--force` only when replacing an existing install path; it moves the old path to a timestamped backup before installing.
+Use `--copy` if you want independent copies instead of symlinks. Copy mode installs only whitelisted skill files and directories, so VCS metadata and local agent config such as `.git/` or `.claude/settings.local.json` are not copied. Use `--force` only when replacing an existing install path; it moves the old path to a timestamped backup before installing.
 
 ```bash
 ./install.sh --copy --target cursor
@@ -101,6 +101,8 @@ Use `--copy` if you want independent copies instead of symlinks. Use `--force` o
 ```
 
 Verify Claude Code / Cursor pick it up on the next session start. Codex reads the managed `feature-research` block from `~/.codex/AGENTS.md`, which points back to this repo's `AGENTS.md` and `SKILL.md`.
+
+`install.sh` is Bash-only and assumes a POSIX-like home directory. On non-POSIX hosts, manually create the target skill directory and copy only these repository files/directories: `SKILL.md`, `AGENTS.md`, `README.md`, `LICENSE`, `agents/`, `scope/`, `sources/`, `templates/`, `topics/`, `scripts/`, and `install.sh`. Do not copy `.git/`, `.claude/`, editor folders, caches, or other local config.
 
 ### Prerequisites
 
@@ -150,10 +152,10 @@ The skill prefers the `signals-service` MCP server (source tag `mcp:signals`) fo
 
 - **MCP pre-flight at session start.** Immediately after Session intake, the main agent calls `db_health()` and `get_stats()` against `signals-service` and folds the result into two independent capability flags:
   - `MCP_DETAIL_USABLE` — controls the per-PR `search_signals` + `get_signal_detail` path used by Phase-1 researchers and Phase-2 monitors.
-  - `MCP_SQL_USABLE` — controls the Phase 4 raw-rows `execute_sql` path used by the plot agent.
+  - `MCP_SQL_USABLE` — controls the optional Phase 4 `fresh_search` raw-rows `execute_sql` path used by the plot agent.
   Both flags are persisted to `out_dir/_signals_schema.json` along with the discovered canonical strings.
-- **Probe verdict lives in `sources/signals_service_discovered.md`.** That file (produced by the Stage-1.5 MCP probe) is the single source of truth for the live server's resolved column names, `signal_id` format, and date-filter support. **Current verdict on the build host:** `MCP_DETAIL_USABLE: true` and `MCP_SQL_USABLE: true` — `signals-service` is the verified first-choice data path for indexed GitHub PR / issue lookups and Phase 4 SQL raw-row fetches. `gh` remains the documented fallback when MCP errors or returns no hit.
-- **Server reference uses the registered name only.** Every committed doc names `signals-service` and nothing else — the actual MCP URL is configured at install/host time in your host's MCP config (Claude Code, Cursor, Codex, and opencode each have their own path; see the **Per-host MCP setup** table in `sources/source_playbook.md`). **URLs are never baked into committed docs** (per C7). `install.sh` MAY emit a warning if `signals-service` is not registered, but it does not write the URL. The only file in the repo that may contain a URL is `sources/signals_service_discovered.md`, and only as a recorded probe target.
+- **Discovery schema lives in `sources/signals_service_discovered.md`.** That file is a redacted Stage-1.5 schema guide for column names, `signal_id` format, date-filter support, and Phase 4 SQL template shape. It is not a global verdict: every run resolves `MCP_DETAIL_USABLE` and `MCP_SQL_USABLE` during session pre-flight and persists the actual per-host result to `out_dir/_signals_schema.json`. `gh` remains the documented fallback when MCP errors or returns no hit.
+- **Server reference uses the registered name only.** Every committed doc names `signals-service` and nothing else — the actual MCP URL is configured at install/host time in your host's MCP config (Claude Code, Cursor, Codex, and opencode each have their own path; see the **Per-host MCP setup** table in `sources/source_playbook.md`). **URLs are never baked into committed docs** (per C7). `install.sh` MAY emit a warning if `signals-service` is not registered, but it does not write the URL.
 - **Every fallback is recorded.** Whenever an agent falls back from `mcp:signals` to `gh` for a given ref, it appends a row `{ref, tool_attempted, tool_succeeded, reason}` to the relevant topic JSON's `_meta.fallback_used` array (per C5). `monitor_existence` (Stage 1) RED-fails any topic file missing either `_meta.search_window` or `_meta.fallback_used`. The synthesized `REPORT.md` rolls these up into a one-line Verification Footer summary (e.g. `Fallback usage: 3 of 47 refs fell back from mcp:signals to gh.`).
 
 ### Workflow
@@ -165,7 +167,7 @@ The skill walks through:
 3. **Phase 1b** — once that vendor's `completed_subfeatures.json`, `kernels_or_components.json`, and `open_issues.json` are on disk, run one serial `analyzer_external_repos` role that derives `out_dir/{vendor}/topics/external_repo_dependencies.json` from them (verifying every external-repo ref against its OWN repo).
 4. **Phase 2** — three serial verification monitor roles per vendor in series: Stage 1 (`monitor_existence`) re-samples PR/issue/URL existence + verbatim quotes AND RED-fails any topic JSON missing `_meta.search_window` / `_meta.fallback_used`; Stage 2 (`monitor_scope`) audits chip-vendor scope; Stage 3 (`monitor_feature`) audits feature strictness. Each writes its own `verification_*.md` under `out_dir/{vendor}/`; later stages run only after the prior stage reaches GREEN/YELLOW.
 5. **Phase 3** — per vendor, apply YELLOW / AMBER / RED must-fixes from all three stages and synthesize `out_dir/{vendor}/REPORT.md`.
-6. **Phase 4 — Feature-activity plot (optional)** — main agent asks the user which metric(s) to chart (`merged_prs`, `opened_issues`, `closed_issues`, `all`, `skip`). The role then prompts the user at runtime for the feature-keyword filter (e.g. for `feature: EP`: `["EP", "expert parallel", "expert-parallel", "EPLB"]`). For each chosen metric, one `plot_ecosystem_activity` role (file/role name kept for back-compat) bulk-fetches monthly counts on `vllm-project/vllm` + `sgl-project/sglang` (configurable) **filtered to PRs/issues that mention at least one feature keyword**, classifies entries against the vendor blocks in `scope/chip_scope_map.md` (single source of truth — no separate keyword file), and writes one CSV + PNG + methods note under the top-level `out_dir/ecosystem_plots/` (per C8.1, directory name kept for back-compat; NOT under any vendor folder — Phase 4 runs once per session, not per vendor). The CSV's `vendor_group` column matches the run's `chip_list` (per C8.2). Best-effort feature-specific context outside the three-stage audit trail. If the user picks `skip`, do NOT create `out_dir/ecosystem_plots/`; continue to Phase 5 when `len(chip_list) == 2`, otherwise advance directly to Phase 6 (the Phase 5 gate is purely `len(chip_list) == 2`).
+6. **Phase 4 — Feature-activity plot (optional)** — main agent asks the user which metric(s) to chart (`merged_prs`, `opened_issues`, `closed_issues`, `all`, `skip`). By default (`ecosystem_plot_source=topic_jsons`), one `plot_ecosystem_activity` role per metric reads the audited Phase 1-3 topic JSONs after monitor fixes, skips `external_repo_dependencies.json`, de-duplicates framework refs, buckets by month, and writes one CSV + PNG + methods note under top-level `out_dir/ecosystem_plots/` with no live fetch. If the user explicitly sets `ecosystem_plot_source=fresh_search`, the role uses the older MCP-first / `gh` fallback search across configured repos and prompts for feature keywords. The CSV's `vendor_group` column matches the run's `chip_list` (per C8.2). Best-effort feature-specific context outside the three-stage audit trail. If the user picks `skip`, do NOT create `out_dir/ecosystem_plots/`; continue to Phase 5 when `len(chip_list) == 2`, otherwise advance directly to Phase 6 (the Phase 5 gate is purely `len(chip_list) == 2`).
 7. **Phase 5 — Comparison synthesis** — only when `len(chip_list) == 2`. Always runs after Phase 4 (per C1) so the comparison report can embed feature-activity plots via `[render_if_present ecosystem_plots]` (loop variable name kept for back-compat). Renders `templates/COMPARISON_REPORT_template.md` to `out_dir/COMPARISON_REPORT.md`. Skipped when `len(chip_list) == 1`.
 8. **Phase 6 — Hand-off** — print paths to all artifacts: per-vendor `out_dir/{vendor}/REPORT.md` + the three `verification_*.md` files + `scope.json` + topic JSONs, plus session-wide artifacts (`search_window.json`, `_signals_schema.json`, Phase 4 feature-activity artifacts under `ecosystem_plots/`, and `COMPARISON_REPORT.md` when Phase 5 ran).
 
@@ -181,33 +183,34 @@ topics/
 scope/
   chip_scope_map.md                 # NVIDIA / AMD / Intel / Google TPU scope rules
 sources/
-  source_playbook.md                # mcp:signals (PRIMARY) + gh (DOCUMENTED FALLBACK) + WebFetch / WebSearch / MLPerf / InferenceX recipes
-  signals_service_discovered.md     # Stage-1.5 MCP probe output: capability flags, discovered canonical strings, Phase 4 SQL template (only file allowed to record the probe URL, per C7)
+  source_playbook.md                # mcp:signals (PRIMARY) + gh (DOCUMENTED FALLBACK) + host web-fetch/search / MLPerf / InferenceX recipes
+  signals_service_discovered.md     # redacted Stage-1.5 MCP schema guide: discovered canonical strings and Phase 4 SQL template shape (no actual MCP URL or host verdict flags)
 agents/
-  researcher.md                     # per-topic researcher sub-agent prompt template
-  analyzer_external_repos.md        # Phase-1b external-repo analyzer sub-agent prompt template
-  monitor_existence.md              # Stage-1 verification sub-agent prompt — PR/issue/URL existence + verbatim quotes + _meta.search_window / _meta.fallback_used presence
-  monitor_scope.md                  # Stage-2 verification sub-agent prompt — chip-vendor scope strictness
-  monitor_feature.md                # Stage-3 verification sub-agent prompt — feature-strictness audit
-  plot_ecosystem_activity.md        # Phase 4 feature-activity plot sub-agent prompt (optional; file name kept for back-compat)
+  researcher.md                     # per-topic researcher worker prompt template
+  analyzer_external_repos.md        # Phase-1b external-repo analyzer worker prompt template
+  monitor_existence.md              # Stage-1 verification worker prompt — PR/issue/URL existence + verbatim quotes + _meta.search_window / _meta.fallback_used presence
+  monitor_scope.md                  # Stage-2 verification worker prompt — chip-vendor scope strictness
+  monitor_feature.md                # Stage-3 verification worker prompt — feature-strictness audit
+  plot_ecosystem_activity.md        # Phase 4 feature-activity plot worker prompt (optional; file name kept for back-compat)
 templates/
   REPORT_template.md                # synthesized per-vendor report skeleton
   COMPARISON_REPORT_template.md     # side-by-side comparison report skeleton rendered by Phase 5 when len(chip_list) == 2 (per C4)
 scripts/
   check_compat.py                   # lightweight packaging/wording validation (host coverage, MCP-first, phase-ordering, URL-handling, per-host MCP setup, slash-command/artifact agreement, plot flag)
+  build_ecosystem_activity_from_topics.py # Phase 4 default topic JSONs → CSV builder
   plot_ecosystem_activity.py        # Phase 4 feature-activity CSV → PNG renderer (matplotlib; script name kept for back-compat) — unchanged CSV consumer contract per C8
 ```
 
 ## Extending
 
 - **Add a framework** — edit the framework→repo map in `sources/source_playbook.md` (table near the top of the file).
-- **Add a chip vendor** — add a vendor block to `scope/chip_scope_map.md` (in-scope, out-of-scope drops, `default_scope_statement`). The Phase 4 plot role automatically picks up the new vendor's `aliases` + `in_scope` codenames as classification keywords; no separate keyword file to edit.
+- **Add a chip vendor** — add a vendor block to `scope/chip_scope_map.md` (in-scope, out-of-scope drops, `default_scope_statement`). Default Phase 4 reads the vendor name from topic JSON `_meta.chip`; optional `fresh_search` mode also picks up the new vendor's `aliases` + `in_scope` codenames as classification keywords.
 - **Add a default topic** — append a topic block to `topics/default_topics.md` matching the existing format (name, `report_heading`, `prompt`, `entry_schema`).
-- **Add a repo to the feature-activity plot** — pass `ecosystem_plot_repos=["org/repoA", "org/repoB", ...]` (input name kept for back-compat). The plot script's per-`(repo, vendor)` color/marker map covers the v1 default repos; new repos fall back through the matplotlib default cycle. Override the legend prefix with `--repo-label org/repo=Label` if needed.
+- **Add a repo to the feature-activity plot** — default Phase 4 uses the `framework_repo` recorded in each topic JSON. For optional fresh search, pass `ecosystem_plot_repos=["org/repoA", "org/repoB", ...]` (input name kept for back-compat). The plot script's per-`(repo, vendor)` color/marker map covers the v1 default repos; new repos fall back through the matplotlib default cycle. Override the legend prefix with `--repo-label org/repo=Label` if needed.
 
 ## Design constraints baked in
 
-- **Roles do not spawn nested workers** — orchestration stays flat in the main agent.
+- **Roles do not launch nested workers** — orchestration stays flat in the main agent.
 - **Verify before write** — every PR / issue / URL is `gh`-checked or web-fetched by the producing researcher before the JSON file is written. The monitor re-samples but does not substitute.
 - **Verbatim source quotes** — perf-number entries store an exact quote from the cited source; the monitor diffs against the live page.
 - **Scope audit trail** — items dropped for being out-of-scope are logged in `verification_scope.md` (Stage 2) and surfaced in the report's Verification Footer.

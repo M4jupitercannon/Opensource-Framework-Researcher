@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Render a feature-specific activity time-series PNG from a CSV produced by
-the ``plot_ecosystem_activity`` Phase 4 sub-agent role.
+the ``plot_ecosystem_activity`` Phase 4 worker role.
 
 Input CSV schema (header required):
     month,repo,vendor_group,count
@@ -18,15 +18,11 @@ Where:
 Upstream data-source variability (this script is unchanged):
     Per contract clarification C8, the CSV consumer contract
     ``month,repo,vendor_group,count`` is UNCHANGED — this renderer always
-    consumes the same four-column CSV. All variability lives in the
-    upstream Phase 4 sub-agent (``agents/plot_ecosystem_activity.md``):
-    when ``MCP_SQL_USABLE=true`` (see ``sources/signals_service_discovered.md``)
-    the agent issues ONE ``execute_sql`` per ``(repo, metric)`` returning
-    RAW rows over the full window (filtered to the run's feature keywords)
-    and classifies them client-side; when ``MCP_SQL_USABLE=false`` it falls
-    back to the existing per-month per-repo ``gh search`` loop with the
-    feature OR-clause appended. **Either upstream path emits the same CSV
-    schema**, so this script needs no changes either way.
+    consumes the same four-column CSV. The default upstream path now reads
+    audited Phase 1-3 topic JSONs via
+    ``scripts/build_ecosystem_activity_from_topics.py``. The optional
+    ``fresh_search`` path still uses MCP SQL or ``gh search`` to produce
+    the same CSV schema.
 
     Per C8.1 the CSV and PNG live at the top-level
     ``{session_out_dir}/ecosystem_plots/`` (NOT under any vendor folder — Phase 4
@@ -203,7 +199,37 @@ def render(
     import matplotlib.pyplot as plt
 
     if not months:
-        sys.exit("No plottable rows found in CSV (after filtering BOTH / NEITHER / errors).")
+        fig, ax = plt.subplots(figsize=(13, 6.5), dpi=120)
+        ax.set_title(title, fontsize=12, fontweight="bold")
+        ax.text(
+            0.5,
+            0.55,
+            "No matching rows found",
+            ha="center",
+            va="center",
+            fontsize=14,
+            color="#555555",
+            transform=ax.transAxes,
+        )
+        ax.text(
+            0.5,
+            0.45,
+            "The CSV was valid, but contained no plottable rows for the selected metric.",
+            ha="center",
+            va="center",
+            fontsize=9,
+            color="#666666",
+            transform=ax.transAxes,
+        )
+        ax.set_axis_off()
+        if footer:
+            fig.text(0.99, 0.01, footer, ha="right", va="bottom", fontsize=8, color="#444444")
+            fig.subplots_adjust(bottom=0.22)
+        out_path.parent.mkdir(parents=True, exist_ok=True)
+        fig.tight_layout()
+        fig.savefig(out_path, dpi=150, bbox_inches="tight")
+        plt.close(fig)
+        return {}
 
     fig, ax = plt.subplots(figsize=(13, 6.5), dpi=120)
 

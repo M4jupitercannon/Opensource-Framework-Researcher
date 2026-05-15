@@ -13,7 +13,7 @@ Every `topics/{topic_name}.json` file MUST conform to this top-level shape.
     "feature": "EP",
     "scope": "NVIDIA Hopper and Blackwell GPUs (datacenter and consumer) — SM90 (Hopper), SM100/SM103 (Blackwell datacenter), SM120 (Blackwell consumer/workstation), SM121 (Blackwell DGX-Spark). Out: SM80/SM86 (Ampere), SM89 (Ada), SM110 (Jetson/DRIVE Thor).",
     "in_scope": ["SM90", "SM100", "SM103", "SM120", "SM121"],
-    "sources_used": ["mcp:signals", "gh", "WebFetch:docs.vllm.ai"],   // see sources/source_playbook.md
+    "sources_used": ["mcp:signals", "gh", "web_fetch:docs.vllm.ai"],   // see sources/source_playbook.md
     "verified_at": "2026-04-23T00:00:00Z",
     "search_window": {                                 // C5: 4-field subset of the canonical search_window object (full object lives at out_dir/search_window.json)
       "raw_input":  "1y",
@@ -47,7 +47,7 @@ Every `topics/{topic_name}.json` file MUST conform to this top-level shape.
     "dedup_canonical": [                               // Stage-3: cross-listed entries deduped to canonical bucket
       // {"ref": "PR #55555", "canonical_bucket": "completed_subfeatures", "also_listed_under_dropped": ["open_issues"]}
     ],
-    "verifications_run": 36                            // number of mcp:signals / gh / WebFetch calls made
+    "verifications_run": 36                            // number of mcp:signals / gh / host web-fetch calls made
   },
   "entries": [ /* entries follow the per-topic schema in topics/default_topics.md */ ]
 }

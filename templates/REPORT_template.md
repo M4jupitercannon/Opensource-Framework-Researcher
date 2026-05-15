@@ -150,7 +150,7 @@ Window: {{plot.window}}. Repos: {{plot.repos_summary}}. Feature: `{{plot.feature
 
 - `topic.intro_paragraph` is one sentence noting source(s) used and any caveats (e.g. "13 perf numbers verified verbatim against PR bodies").
 
-- `sources_summary` is the union of all `_meta.sources_used` arrays, deduplicated. **When emitting `sources_summary` in the header, collapse all `WebFetch:*` tags to a single `WebFetch`** (e.g. `WebFetch:docs.vllm.ai` and `WebFetch:developer.nvidia.com/blog` both become `WebFetch`). The full per-host list lives in the per-topic JSONs. Example summary: `gh, WebFetch, WebSearch, mlperf, inferencex`.
+- `sources_summary` is the union of all `_meta.sources_used` arrays, deduplicated. **When emitting `sources_summary` in the header, collapse all `web_fetch:*` tags to a single `web_fetch`** (e.g. `web_fetch:docs.vllm.ai` and `web_fetch:developer.nvidia.com/blog` both become `web_fetch`). The full per-host list lives in the per-topic JSONs. Example summary: `gh, web_fetch, web_search, mlperf, inferencex`.
 
 - **`verbatim_quote_fixes` data source.** This loop is NOT sourced from any `_meta.*` field — instead, parse the `### Verbatim-quote drift` table in `verification_existence.md`. Each table row produces one entry: `{field: <Field column>, ref: <File column> (and any inline ref), was: <Claimed quote column>, now: <Actual quote column>}`. If the table is absent or empty, render the loop as the literal line `- (none)`.
 

@@ -1,6 +1,6 @@
 # `monitor_existence` role prompt template — Stage 1 of 3
 
-The main agent uses this template for one delegated worker in parallel sub-agent mode, or as a role checklist in serial fallback mode, AFTER all researchers have completed Phase 1 for the active vendor. Substitute `{vendor_out_dir}` (e.g. `out_dir/{chip}/`), `{chip}` (the active vendor for this monitor invocation), `{framework}`, `{framework_repo}`, `{feature}`, `{search_window}` (full canonical C2 object — the monitor reads field names verbatim and does NOT re-parse `raw_input`), and `{data_source}` (`mcp_first` | `gh_only`, set by the session-start MCP pre-flight per C6).
+The main agent uses this template for one delegated worker in parallel delegation mode, or as a role checklist in serial fallback mode, AFTER all researchers have completed Phase 1 for the active vendor. Substitute `{vendor_out_dir}` (e.g. `out_dir/{chip}/`), `{chip}` (the active vendor for this monitor invocation), `{framework}`, `{framework_repo}`, `{feature}`, `{search_window}` (full canonical C2 object — the monitor reads field names verbatim and does NOT re-parse `raw_input`), and `{data_source}` (`mcp_first` | `gh_only`, set by the session-start MCP pre-flight per C6).
 
 **Purpose**: this is the FIRST of three serial verification stages. Stage 1 (this monitor) checks that **every cited fact actually exists** — PRs/issues/RFCs are real on `{framework_repo}`, verbatim source quotes appear on the linked URLs, and `_meta` blocks are well-formed. Stage 2 (`monitor_scope`) and Stage 3 (`monitor_feature`) only run after Stage 1 reaches GREEN/YELLOW.
 
@@ -10,7 +10,7 @@ This stage is the hallucination defense. A failure here means a researcher fabri
 
 ## Template
 
-> You are the **Stage-1 existence/facts monitor** for the `feature-research` skill. Your single job is to independently re-check that the references in the topic JSONs produced in Phase 1 actually exist as cited. Write `{vendor_out_dir}/verification_existence.md` with a verdict and a must-fix list. **You must NOT spawn further sub-agents**. Use only local file read/write capabilities, the `signals-service` MCP server (PRIMARY), shell/terminal commands for `gh` (DOCUMENTED FALLBACK), and web fetch capabilities for quote checks.
+> You are the **Stage-1 existence/facts monitor** for the `feature-research` skill. Your single job is to independently re-check that the references in the topic JSONs produced in Phase 1 actually exist as cited. Write `{vendor_out_dir}/verification_existence.md` with a verdict and a must-fix list. **You must NOT launch nested workers**. Use only local file read/write capabilities, the `signals-service` MCP server (PRIMARY), shell/terminal commands for `gh` (DOCUMENTED FALLBACK), and host web-fetch capabilities or equivalents for quote checks.
 >
 > **Do NOT do scope or feature-relevance checks here.** Stage 2 (`monitor_scope`) handles chip-vendor scope; Stage 3 (`monitor_feature`) handles feature strictness. If a reference exists and its title/state match the file's claim, accept it for Stage 1 even if you suspect it's out-of-scope or off-topic — those are not your concern.
 >

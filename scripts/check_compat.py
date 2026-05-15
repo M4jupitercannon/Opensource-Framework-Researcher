@@ -26,6 +26,7 @@ REQUIRED_FILES = [
     "agents/monitor_scope.md",
     "agents/monitor_feature.md",
     "agents/plot_ecosystem_activity.md",
+    "scripts/build_ecosystem_activity_from_topics.py",
     "scripts/plot_ecosystem_activity.py",
     "templates/REPORT_template.md",
     "templates/COMPARISON_REPORT_template.md",
@@ -129,6 +130,8 @@ def check_skill_frontmatter() -> None:
             f"SKILL.md frontmatter `description` is {len(description)} chars; "
             "must be <= 1024."
         )
+    if "Use when" not in description:
+        fail("SKILL.md frontmatter `description` must include explicit 'Use when' trigger language")
 
     compatibility = fields["compatibility"]
     expected_hosts = ("claude-code", "cursor", "codex", "opencode")
@@ -210,6 +213,11 @@ def check_installer() -> None:
             "(expected the literal 'claude|cursor|codex|opencode' in the case "
             "match or usage text)."
         )
+    if 'cp -a "$REPO_DIR" "$dest"' in text or "cp -a '$REPO_DIR' '$dest'" in text:
+        fail("install.sh --copy must not copy the whole repo tree")
+    for expected in ("SKILL_COPY_FILES", "build_ecosystem_activity_from_topics.py"):
+        if expected not in text:
+            fail(f"install.sh copy whitelist does not mention {expected!r}")
 
 
 def check_phase_4_wired_in() -> None:
@@ -483,6 +491,41 @@ def check_no_hardcoded_mcp_url() -> None:
             fail(f"{relpath} contains hard-coded MCP URL — see C7")
 
 
+def check_public_safe_mcp_discovery() -> None:
+    text = read("sources/signals_service_discovered.md")
+    forbidden = (
+        "10.161.176.9",
+        "MCP_DETAIL_USABLE: true",
+        "MCP_SQL_USABLE:    true",
+        "Current verdict on the build host",
+        "Probe verdict",
+        "build host",
+        "probe-time URL",
+        "sync_vllm-project",
+    )
+    for token in forbidden:
+        if token in text:
+            fail(f"sources/signals_service_discovered.md contains host-specific probe output: {token!r}")
+
+
+def check_host_neutral_wording() -> None:
+    paths = (
+        "AGENTS.md",
+        "SKILL.md",
+        "README.md",
+        "sources/source_playbook.md",
+        "templates/REPORT_template.md",
+        "topics/default_topics.md",
+        "topics/topic_json_schema.md",
+    ) + tuple(str(p.relative_to(ROOT)) for p in (ROOT / "agents").glob("*.md"))
+    forbidden = ("WebFetch", "WebSearch", "AskQuestion", "spawn further sub-agents", "parallel sub-agent mode")
+    for relpath in paths:
+        text = read(relpath)
+        for token in forbidden:
+            if token in text:
+                fail(f"{relpath} contains platform-specific wording: {token!r}")
+
+
 def check_topics_mcp_first_wording() -> None:
     """topics/default_topics.md MUST advertise MCP-first / fallback wording so the
     per-topic prompts agree with `agents/researcher.md`. Same shape as
@@ -743,6 +786,26 @@ def check_plot_script_vendor_group_flag() -> None:
         )
 
 
+def check_topic_activity_builder_invocable() -> None:
+    script = ROOT / "scripts" / "build_ecosystem_activity_from_topics.py"
+    if not script.is_file():
+        fail("scripts/build_ecosystem_activity_from_topics.py is missing")
+    result = subprocess.run(
+        [sys.executable, str(script), "--help"],
+        capture_output=True,
+        text=True,
+        timeout=15,
+    )
+    if result.returncode != 0:
+        fail(
+            "scripts/build_ecosystem_activity_from_topics.py --help exited "
+            f"{result.returncode}: {result.stderr.strip()}"
+        )
+    for expected in ("--session-out-dir", "--metric", "--csv", "--methods"):
+        if expected not in result.stdout:
+            fail(f"build_ecosystem_activity_from_topics.py --help missing {expected!r}")
+
+
 def check_plot_script_invocable() -> None:
     script = ROOT / "scripts" / "plot_ecosystem_activity.py"
     if not script.is_file():
@@ -783,6 +846,8 @@ def main() -> int:
     check_out_dir_disambiguated()
     check_c_tag_glossary()
     check_no_hardcoded_mcp_url()
+    check_public_safe_mcp_discovery()
+    check_host_neutral_wording()
     check_topics_mcp_first_wording()
     check_phase4_skip_does_not_bypass_phase5()
     check_per_vendor_report_relpath()
@@ -790,6 +855,7 @@ def main() -> int:
     check_no_unbacked_slash_command()
     check_per_host_mcp_setup_table()
     check_plot_script_vendor_group_flag()
+    check_topic_activity_builder_invocable()
     check_plot_script_invocable()
     print("OK: feature-research compatibility checks passed")
     return 0

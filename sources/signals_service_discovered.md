@@ -1,54 +1,42 @@
-<!--
-ENVIRONMENT-SPECIFIC FILE. The URL recorded below is the probe target seen
-at probe time on the build host and is ignored if `signals-service` is
-registered under a different URL on the runtime host. The skill always
-references the server by its registered name `signals-service` (per
-contract clarification C7); only this discovery appendix may name the URL,
-and only as a recorded probe target. Re-run Stage 1.5 to refresh.
--->
+# signals-service MCP — redacted discovery guide (Stage 1.5)
 
-# signals-service MCP — discovered values (Stage 1.5)
+This appendix records portable schema strings and query shapes for a
+`signals-service` MCP server registered under the name `signals-service`.
+It intentionally does **not** record actual MCP URLs, build-machine row counts,
+sync IDs, or current capability verdicts.
+
+At runtime, the main agent still runs the MCP pre-flight (`db_health()` and
+`get_stats()`), resolves the per-host `MCP_DETAIL_USABLE` and `MCP_SQL_USABLE`
+flags, and writes those actual values to `out_dir/_signals_schema.json`. Treat
+the placeholders below as examples to refresh during Stage 1.5, not as a claim
+that any new host has MCP detail or SQL support enabled.
 
 ```yaml
-# Capability flags — Stage 2 branches on these.
-MCP_DETAIL_USABLE: true    # per-PR `search_signals` + `get_signal_detail` path
-MCP_SQL_USABLE:    true    # Phase 4 raw-rows `execute_sql` path
-# `gh` remains the documented fallback only when MCP errors or returns no hit.
+# Runtime capability flags — write actual values to out_dir/_signals_schema.json.
+MCP_DETAIL_USABLE: <true|false>  # per-PR `search_signals` + `get_signal_detail` path
+MCP_SQL_USABLE:    <true|false>  # Phase 4 raw-rows `execute_sql` path
+# `gh` remains the documented fallback when MCP errors, returns no hit,
+# or db_health() fails at session start.
 ```
 
-## Probe target (environment-specific)
+## Probe target (redacted)
 
 - **Registered name**: `signals-service` (the only name the rest of the skill uses)
-- **Probe-time URL**: `http://10.161.176.9:8082/mcp` (recorded only here; the runtime
-  host may register a different URL under the same name — the skill never bakes
-  the URL into committed prose per C7).
-- **Protocol version**: `2024-11-05`
-- **Server name / version**: `Signals Service` `1.27.0`
+- **Configured URL**: `<host MCP config value; do not commit actual URLs>`
+- **Protocol version**: `<reported by server>`
+- **Server name / version**: `<reported by server>`
 
-## Probe verdict (2026-05-14T07:04:16Z)
+## Probe checklist
 
-**signals-service is alive and both MCP paths are usable.** The live probe (run via
-direct HTTP/JSON-RPC against the probe-time URL because the Cursor host hadn't
-picked up the registered MCP server yet at probe time — same protocol, same data)
-returned a healthy DB with **111,476 signals** (525,488 comments) over a
-**1488.7 MB** database, latest sync state `running`
-(`sync_vllm-project_vllm_20260514_061914_222017`, started `2026-05-14T06:19:14Z`).
-`db_health()`'s `fts_integrity` field reported `database is locked` while the
-sync was in flight — a transient effect of the running sync, not a service
-failure — but `search_signals`, `get_signal_detail`, and `execute_sql` all
-completed successfully, so **both capability flags resolve to `true`**.
-
-## Probe results table
-
-| Step | Probe | Status | Sample value | Notes |
-|---|---|---|---|---|
-| 1 | `db_health()` | OK | `signal_count=111476`, `comment_count=525488`, `db_size_mb=1488.7`, `wal_size_mb=0.5` | `fts_integrity` returned `database is locked` because sync `sync_vllm-project_vllm_20260514_061914_222017` was running; the locked state is transient and the query APIs remained usable. Re-running after sync completion returns `ok`. |
-| 2 | `get_stats()` | OK | repos: `pytorch/pytorch=44946`, `vllm-project/vllm=41774`, `sgl-project/sglang=24756`; states: `closed=95158`, `open=16318`; types: `github_pr=75476`, `github_issue=36000` | All three default probe repos are indexed. |
-| 3 | `search_signals(query, repos, ...)` over probe list `[vllm-project/vllm, sgl-project/sglang, pytorch/pytorch]` | OK | `search_signals(query="aiter MLA", limit=5)` returned `github:vllm-project/vllm:issue:29290` plus related PRs/issues; `search_signals(repos="sgl-project/sglang", state="open", limit=5)` returned 3,451 open results. | `repos` requires full slugs (`sglang` alone returns 0). Confirmed argument names: `query, repos, source_types, labels, state, since, until, sort, limit, offset`. |
-| 4 | `get_signal_detail(signal_id, ...)` | OK | `get_signal_detail("github:vllm-project/vllm:issue:29290", include_body=false, include_comments=false)` returned title, body_preview, labels, state, references, GitHub metadata, comments preview, and the rich `github_json` blob. | Resolved `signal_id` format `github:<org>/<repo>:<pr\|issue>:<source_number>` (e.g. `github:vllm-project/vllm:pr:42434`). |
-| 5 | `execute_sql("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")` | OK | tables: `etag_cache`, `signal_changes`, `signal_comments`, `signal_gap_ids`, `signal_labels`, `signal_refs`, `signal_stats`, `signals`, `signals_fts`, `sync_runs`, plus SQLite FTS / stat tables. | The SQLite-flavoured probe replaces `SHOW TABLES`. Read-only path; returns JSON with `columns`, `rows`, `row_count`. |
-| 6 | `execute_sql("SELECT * FROM signals LIMIT 1")` | OK | full 28-column schema captured below. | Confirms the canonical-string table below (e.g. `source_repo`, `source_type`, `github_labels`, `github_json` etc.). |
-| 7 | Phase 4–shaped raw-rows query | OK | `execute_sql(<merged_prs template>)` returned merged PR rows for `vllm-project/vllm` and `sgl-project/sglang`; `<opened_issues template>` and `<closed_issues template>` returned issue rows for `sgl-project/sglang`. | `MCP_SQL_USABLE = true`; Phase 4 uses SQL first and falls back to `gh` only on MCP failure or miss. |
+| Step | Probe | Record |
+|---|---|---|
+| 1 | `db_health()` | Health summary in `out_dir/_signals_schema.json`; do not commit host row counts or transient sync state. |
+| 2 | `get_stats()` | Repo/state/type coverage summary in `out_dir/_signals_schema.json`; do not commit host-specific counts. |
+| 3 | `search_signals(query, repos, ...)` over a small known-repo list | Confirm accepted argument names and whether full repo slugs are required. |
+| 4 | `get_signal_detail(signal_id, ...)` | Confirm `signal_id` format and detail field availability. |
+| 5 | `execute_sql("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")` | Confirm SQL access and table names when SQL is available. |
+| 6 | `execute_sql("SELECT * FROM signals LIMIT 1")` | Refresh the portable canonical-string table below if columns drift. |
+| 7 | One Phase 4–shaped raw-rows query | Confirm whether `MCP_SQL_USABLE` should be true for this runtime host. |
 
 ## Resolved canonical strings
 
@@ -113,7 +101,7 @@ use for label-AND-of-many queries), `signal_comments`, `signal_refs`, `signal_ch
 `signal_gap_ids`, `signal_stats`, `etag_cache`, `sync_runs`, and the FTS5 virtual table
 `signals_fts` (queried only via `search_signals(query=...)`).
 
-## Phase 4 SQL templates (verified — `execute_sql` returned rows)
+## Phase 4 SQL templates (schema example)
 
 The three templates below are parameterised on `<org/repo>`, `<search_window.start_date>`,
 and `<search_window.end_date_plus_one_day>`. **The caller computes `<end_date_plus_one_day>`
@@ -121,8 +109,9 @@ as `<search_window.end_date> + 1 day`** so the upper bound is a half-open interv
 still includes every event on `end_date` itself. Each template returns RAW rows; the plot
 agent then classifies client-side against `scope/chip_scope_map.md` and buckets into
 `(month, repo, vendor_group)` to preserve the existing CSV schema
-`month,repo,vendor_group,count`. Net change: O(months × repos × metrics) `gh search`
-round-trips → O(repos × metrics) `execute_sql` round-trips.
+`month,repo,vendor_group,count`. When the runtime host confirms
+`MCP_SQL_USABLE=true`, this changes O(months × repos × metrics) `gh search`
+round-trips into O(repos × metrics) `execute_sql` round-trips.
 
 ### `merged_prs` for one (`repo`, window)
 
@@ -198,10 +187,10 @@ but **both bounds filter on `updated_at`** — NOT on `created_at`, `pr_merged_a
 
 To refresh this file on a host where `signals-service` is registered:
 
-- Confirm `signals-service` is registered in the host MCP config at `~/.cursor/mcp.json`
-  (or the host agent's equivalent). The skill always references the server by its
-  registered name — the URL recorded above is environment-specific and ignored if
-  the runtime host registers a different URL under the same name.
+- Confirm `signals-service` is registered in the host MCP config (for example
+  `~/.cursor/mcp.json`, or that host agent's equivalent). The skill always
+  references the server by its registered name; do not write actual MCP URLs into
+  committed docs.
 - Pre-flight: `db_health()` (expect `signal_count > 0`, `fts_integrity = "ok"` when no
   sync is in flight) and `get_stats()` (expect per-repo / per-state / per-type totals).
 - `search_signals` iteration over the probe-repo list
@@ -215,9 +204,10 @@ To refresh this file on a host where `signals-service` is registered:
   above; if columns drifted, refresh the table accordingly.
 - One Phase 4–shaped `execute_sql(<merged_prs template>)` call against one of the
   probe repos to confirm `MCP_SQL_USABLE`.
-- Persist both flags + the canonical strings back into this file. Stage 2 sub-agents
+- Persist both flags + any host-specific probe results to
+  `out_dir/_signals_schema.json`. Update this committed file only for portable
+  schema strings, redacted examples, or query-template changes. Delegated roles
   (`agents/researcher.md`, `agents/analyzer_external_repos.md`,
   `agents/monitor_*.md`, `agents/plot_ecosystem_activity.md`) do NOT need to be
-  re-spawned — they already gate their MCP recipes on `MCP_DETAIL_USABLE` /
-  `MCP_SQL_USABLE` so flipping the flags activates / deactivates the MCP path at
-  runtime.
+  re-run just because runtime flags changed — they gate their MCP recipes on
+  `MCP_DETAIL_USABLE` / `MCP_SQL_USABLE` at runtime.

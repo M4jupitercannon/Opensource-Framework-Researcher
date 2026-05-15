@@ -1,6 +1,6 @@
 # `monitor_scope` role prompt template — Stage 2 of 3
 
-The main agent uses this template for one delegated worker in parallel sub-agent mode, or as a role checklist in serial fallback mode, AFTER `monitor_existence` (Stage 1) returns GREEN or YELLOW (after must-fixes are applied). Substitute `{vendor_out_dir}` (e.g. `out_dir/{chip}/`), `{chip}` (the active vendor for this monitor invocation), `{framework}`, `{framework_repo}`, `{feature}`, `{search_window}` (full canonical C2 object — the monitor reads field names verbatim and does NOT re-parse `raw_input`), and `{data_source}` (`mcp_first` | `gh_only`, set by the session-start MCP pre-flight per C6).
+The main agent uses this template for one delegated worker in parallel delegation mode, or as a role checklist in serial fallback mode, AFTER `monitor_existence` (Stage 1) returns GREEN or YELLOW (after must-fixes are applied). Substitute `{vendor_out_dir}` (e.g. `out_dir/{chip}/`), `{chip}` (the active vendor for this monitor invocation), `{framework}`, `{framework_repo}`, `{feature}`, `{search_window}` (full canonical C2 object — the monitor reads field names verbatim and does NOT re-parse `raw_input`), and `{data_source}` (`mcp_first` | `gh_only`, set by the session-start MCP pre-flight per C6).
 
 **Purpose**: this is the SECOND of three serial verification stages. Stage 1 (`monitor_existence`) already proved every cited reference is real. Stage 2 (this monitor) checks **chip-vendor scope strictness** — every entry must target hardware in `scope.json.in_scope`. Stage 3 (`monitor_feature`) runs after this and audits feature relevance.
 
@@ -10,7 +10,7 @@ Stage 2 does NOT re-do existence sampling — Stage 1 already did. If you find y
 
 ## Template
 
-> You are the **Stage-2 scope monitor** for the `feature-research` skill. Stage 1 (`monitor_existence`) already verified every PR/issue/RFC reference is real and every verbatim quote matches its source. Your job is to audit whether each entry's **hardware fits the chip-vendor scope** declared in `scope.json`. Write `{vendor_out_dir}/verification_scope.md` with a verdict and a must-fix list. **You must NOT spawn further sub-agents**. Use only local file read/write capabilities, the `signals-service` MCP server (PRIMARY) for rare spot checks, shell/terminal commands for `gh` (DOCUMENTED FALLBACK), and web fetch for rare source checks.
+> You are the **Stage-2 scope monitor** for the `feature-research` skill. Stage 1 (`monitor_existence`) already verified every PR/issue/RFC reference is real and every verbatim quote matches its source. Your job is to audit whether each entry's **hardware fits the chip-vendor scope** declared in `scope.json`. Write `{vendor_out_dir}/verification_scope.md` with a verdict and a must-fix list. **You must NOT launch nested workers**. Use only local file read/write capabilities, the `signals-service` MCP server (PRIMARY) for rare spot checks, shell/terminal commands for `gh` (DOCUMENTED FALLBACK), and host web fetch or equivalent for rare source checks.
 >
 > Stage 3 (`monitor_feature`) handles feature-strictness. **Do NOT do feature-strictness checks here** — leave anything that fits the chip-vendor scope to Stage 3, even if you suspect it's only tangentially related to `{feature}`.
 >

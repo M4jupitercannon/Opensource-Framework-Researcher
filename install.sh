@@ -17,7 +17,7 @@ Usage:
 Options:
   --target VALUE   Install one target. May be repeated. Default: all.
   --symlink        Link this repo into skill directories. Default.
-  --copy           Copy this repo into skill directories.
+  --copy           Copy only the whitelisted skill files into skill directories.
   --force          Move an existing non-matching install path to a timestamped backup.
   -h, --help       Show this help.
 
@@ -27,6 +27,10 @@ Targets:
   codex            ~/.codex/skills/feature-research plus a managed block in ~/.codex/AGENTS.md
   opencode         ~/.config/opencode/skills/feature-research plus a managed block in ~/.config/opencode/AGENTS.md
                    (XDG default; verify on your opencode version)
+
+Notes:
+  This installer is Bash-only and expects a POSIX-like home directory.
+  On non-POSIX hosts, manually copy the whitelisted files listed in README.md.
 USAGE
 }
 
@@ -44,11 +48,46 @@ require_repo_file() {
   [[ -f "$REPO_DIR/$path" ]] || die "missing required repo file: $path"
 }
 
+readonly -a SKILL_COPY_FILES=(
+  "SKILL.md"
+  "AGENTS.md"
+  "README.md"
+  "LICENSE"
+  "agents/analyzer_external_repos.md"
+  "agents/monitor_existence.md"
+  "agents/monitor_feature.md"
+  "agents/monitor_scope.md"
+  "agents/plot_ecosystem_activity.md"
+  "agents/researcher.md"
+  "scope/chip_scope_map.md"
+  "sources/signals_service_discovered.md"
+  "sources/source_playbook.md"
+  "templates/COMPARISON_REPORT_template.md"
+  "templates/REPORT_template.md"
+  "topics/default_topics.md"
+  "topics/topic_json_schema.md"
+  "scripts/build_ecosystem_activity_from_topics.py"
+  "scripts/check_compat.py"
+  "scripts/plot_ecosystem_activity.py"
+  "install.sh"
+)
+
 backup_existing() {
   local dest="$1"
   local backup="${dest}.bak.$(date +%Y%m%d%H%M%S)"
   mv "$dest" "$backup"
   log "Moved existing $dest to $backup"
+}
+
+copy_skill_tree() {
+  local dest="$1"
+
+  mkdir -p "$dest"
+  for relpath in "${SKILL_COPY_FILES[@]}"; do
+    require_repo_file "$relpath"
+    mkdir -p "$dest/$(dirname "$relpath")"
+    cp -p "$REPO_DIR/$relpath" "$dest/$relpath"
+  done
 }
 
 install_skill_dir() {
@@ -78,7 +117,7 @@ install_skill_dir() {
     ln -s "$REPO_DIR" "$dest"
     log "Installed $label skill symlink: $dest -> $REPO_DIR"
   else
-    cp -a "$REPO_DIR" "$dest"
+    copy_skill_tree "$dest"
     log "Installed $label skill copy: $dest"
   fi
 }
