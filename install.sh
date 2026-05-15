@@ -9,10 +9,10 @@ TARGETS=()
 
 usage() {
   cat <<'USAGE'
-Install feature-research for Claude Code, Cursor, and/or Codex.
+Install feature-research for Claude Code, Cursor, Codex, and/or opencode.
 
 Usage:
-  ./install.sh [--target all|claude|cursor|codex] [--symlink|--copy] [--force]
+  ./install.sh [--target all|claude|cursor|codex|opencode] [--symlink|--copy] [--force]
 
 Options:
   --target VALUE   Install one target. May be repeated. Default: all.
@@ -25,6 +25,8 @@ Targets:
   claude           ~/.claude/skills/feature-research
   cursor           ~/.cursor/skills/feature-research
   codex            ~/.codex/skills/feature-research plus a managed block in ~/.codex/AGENTS.md
+  opencode         ~/.config/opencode/skills/feature-research plus a managed block in ~/.config/opencode/AGENTS.md
+                   (XDG default; verify on your opencode version)
 USAGE
 }
 
@@ -142,6 +144,65 @@ install_codex() {
   install_codex_agents_block
 }
 
+install_opencode_agents_block() {
+  # opencode reads AGENTS.md natively. We install (or update) a marker-bracketed
+  # block in ~/.config/opencode/AGENTS.md modeled on the Codex install.
+  # Path assumption: ~/.config/opencode/ is the XDG-default opencode config dir.
+  # If your installed opencode version uses a different path, move the file
+  # accordingly — this is the only place we write opencode config.
+  local opencode_dir="$HOME/.config/opencode"
+  local agents_file="$opencode_dir/AGENTS.md"
+
+  mkdir -p "$opencode_dir"
+
+  AGENTS_FILE="$agents_file" REPO_DIR="$REPO_DIR" python3 - <<'PY'
+from __future__ import annotations
+
+import os
+from pathlib import Path
+
+agents_file = Path(os.environ["AGENTS_FILE"])
+repo_dir = Path(os.environ["REPO_DIR"])
+
+begin = "<!-- BEGIN feature-research installer -->"
+end = "<!-- END feature-research installer -->"
+block = f"""{begin}
+
+## feature-research
+
+Use the feature-research workflow when the user asks for the state, roadmap,
+status, dashboard, or report for a `(chip vendor, framework, feature)` triple.
+
+Workflow repo: `{repo_dir}`
+
+Read `{repo_dir / "AGENTS.md"}` first, then `{repo_dir / "SKILL.md"}` as the
+canonical runbook. If no sub-agent or delegation tool is available, use the
+serial fallback mode from `SKILL.md`.
+
+{end}
+"""
+
+existing = agents_file.read_text(encoding="utf-8") if agents_file.exists() else ""
+if begin in existing and end in existing:
+    before, rest = existing.split(begin, 1)
+    _, after = rest.split(end, 1)
+    updated = before.rstrip() + "\n\n" + block + after.lstrip("\n")
+else:
+    prefix = existing.rstrip()
+    updated = (prefix + "\n\n" if prefix else "") + block
+
+agents_file.write_text(updated, encoding="utf-8")
+PY
+
+  log "Installed opencode managed instructions in $agents_file"
+}
+
+install_opencode() {
+  # XDG-default opencode skills path; verify on your opencode version.
+  install_skill_dir "opencode" "$HOME/.config/opencode/skills"
+  install_opencode_agents_block
+}
+
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --target)
@@ -182,9 +243,9 @@ expanded_targets=()
 for target in "${TARGETS[@]}"; do
   case "$target" in
     all)
-      expanded_targets+=("claude" "cursor" "codex")
+      expanded_targets+=("claude" "cursor" "codex" "opencode")
       ;;
-    claude|cursor|codex)
+    claude|cursor|codex|opencode)
       expanded_targets+=("$target")
       ;;
     *)
@@ -198,6 +259,7 @@ for target in "${expanded_targets[@]}"; do
     claude) install_claude ;;
     cursor) install_cursor ;;
     codex) install_codex ;;
+    opencode) install_opencode ;;
   esac
 done
 

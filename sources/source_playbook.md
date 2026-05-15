@@ -1,12 +1,122 @@
 # Source playbook
 
-Each researcher sub-agent receives this file and chooses sources per topic. Every fact in a topic JSON must be traceable to one of the source IDs below; the researcher records which sources it used in `_meta.sources_used` (e.g. `["gh", "WebFetch:docs.vllm.ai", "inferencex"]`).
+Each researcher sub-agent receives this file and chooses sources per topic. Every fact in a topic JSON must be traceable to one of the source IDs below; the researcher records which sources it used in `_meta.sources_used` (e.g. `["mcp:signals", "gh", "WebFetch:docs.vllm.ai", "inferencex"]`).
 
 ---
 
-## 1. `gh` — GitHub CLI (PRIMARY for completed_subfeatures, open_issues, roadmap)
+## 0. `mcp:signals` — signals-service MCP server (PRIMARY for GitHub PR/issue lookups)
 
-**When**: any claim about a PR, issue, RFC, or release in the framework's repo.
+**`mcp:signals` is the PRIMARY source for any GitHub PR / issue / RFC lookup; `gh` (Section 1) is the DOCUMENTED FALLBACK.** Every researcher / analyzer / monitor that needs PR or issue data MUST try MCP first per the **Fallback contract** below.
+
+The MCP server is referenced by its **registered name** `signals-service` only. The URL lives in the **host's** MCP config (per-host paths below) and is environment-specific — committed docs MUST NOT contain the URL. The Stage-1.5 probe appendix `sources/signals_service_discovered.md` is the only file in this repo that may record it, and only as a probe target with an environment-specific disclaimer (per C7).
+
+### Per-host MCP setup
+
+Configure `signals-service` in your host's MCP config before running the skill. Paths and registration syntax differ per host:
+
+| Host | Config path | Registration command / snippet |
+|---|---|---|
+| Claude Code | `~/.claude.json` | `claude mcp add signals-service <command-or-url>` (CLI writes the entry into the file) |
+| Cursor | `~/.cursor/mcp.json` | JSON `mcpServers` entry: `{"mcpServers": {"signals-service": {"command": "...", "args": ["..."]}}}` |
+| Codex | `~/.codex/config.toml` | TOML block: `[mcp_servers.signals-service]` with `command`, `args`, optional `env` (verify on your Codex version) |
+| opencode | `~/.config/opencode/opencode.json` (or `opencode.jsonc`) | JSON `mcp` entry: `{"mcp": {"signals-service": {"type": "local", "command": ["..."], "enabled": true}}}` for a local server, or `{"type": "remote", "url": "..."}` for a remote server (verify on your opencode version) |
+
+If any path differs on your installed host version, update the host's MCP config according to that host's documentation; the skill only requires that the server be reachable under the registered name `signals-service`.
+
+**When**: any claim about a PR, issue, or release in the framework's repo (Phase 1 fetches, Phase 2 monitor re-samples, Phase 4 ecosystem activity time-series). For external-repo refs (Phase 1b analyzer), still try `mcp:signals` first since signals-service indexes many ecosystem repos; on miss, fall back to `gh` per the contract.
+
+### Resolved recipes (from Stage 1.5 probe)
+
+The live Stage-1.5 probe records the current `signal_id` format, SQL column
+names, and Phase 4 templates in `sources/signals_service_discovered.md`.
+Researchers / analyzers / monitors / plot agents MUST consume that appendix for
+canonical strings and MUST NOT invent a different `signal_id` or SQL schema.
+
+```text
+# Pre-flight (run once per session, before Phase 0)
+db_health()                                                   # → returns {ok: bool, ...}
+get_stats()                                                   # → returns {row_count, tables[], latest_update_ts, ...}
+
+# Per-PR / per-issue search (Phase 1 fetch, Phase 2 monitor re-sample)
+search_signals(
+    query="<keywords>",
+    repos="<org/repo>",                                       # full slug required; "sglang" is not enough
+    source_types="github_issue|github_pr",
+    state="open|closed|all",
+    since="<search_window.start_date>T00:00:00Z",             # filters updated_at
+    until="<search_window.end_date_plus_1>T00:00:00Z",
+    sort="updated|created|relevance",
+    limit=20
+)
+
+# Per-PR / per-issue body fetch (Phase 2 monitor re-sample)
+get_signal_detail(
+    signal_id="<as-discovered — see sources/signals_service_discovered.md; current shape: github:<org>/<repo>:<pr|issue>:<source_number>>",
+    include_body=true|false,
+    include_comments=true|false
+)
+
+# Phase 4 raw-rows pattern (one query per (repo, metric) over the full window)
+execute_sql("<probed-schema-aware-SQL>")                       # resolved template in Stage 1.5 probe appendix;
+                                                               # see `sources/signals_service_discovered.md`
+                                                               # for the resolved Phase 4 SQL template.
+```
+
+**Date-filter and SQL details are resolved for the current probe host** in
+`sources/signals_service_discovered.md`. `search_signals` supports `since` /
+`until` over `updated_at`; Phase 4 metric bucketing uses SQL because created,
+merged, and closed timestamps are separate fields / JSON paths. If a future
+probe changes the schema, update the appendix and keep this playbook pointing to
+the appendix rather than duplicating environment-specific details.
+
+### Discovery protocol (per C6)
+
+Two capability flags govern which MCP paths are usable in the current run:
+
+- `MCP_DETAIL_USABLE` — controls the per-PR MCP path (used by Phase-1 researchers and Phase-2 monitors), i.e. per-ref `search_signals` + `get_signal_detail`. True iff `db_health()` passes AND a known-PR `search_signals` round-trip returns a usable `signal_id`. Defaults to **False** if `db_health()` errors.
+- `MCP_SQL_USABLE` — controls the Phase 4 SQL raw-rows path (used by the plot role), i.e. the Phase 4 raw-rows pattern per C8. True iff `MCP_DETAIL_USABLE` is True AND a probed `execute_sql("SELECT ... LIMIT 5")` against the discovered schema succeeds. Defaults to **False** if `db_health()` errors.
+
+Both flags fold into a single `data_source` variable: `mcp_first` when either flag is True, `gh_only` when both are False.
+
+**Discovery sequence** (executed once per session by the main agent, formalized as Stage 1.5 in the build plan):
+
+1. **Session-start pre-flight.** Call `db_health()` and `get_stats()`. If `db_health` errors, set both flags to False and `data_source=gh_only`; skip the rest of the discovery sequence.
+2. **`signal_id` format probe.** Iterate the small fixed probe-repo list `["vllm-project/vllm", "sgl-project/sglang", "pytorch/pytorch"]` and call `search_signals(query="<known title>", repos="<org/repo>")` against each in turn. Accept the **first** repo that returns ≥1 result (per C6.E — a single repo's absence from the signals DB does not falsely conclude the service is broken). Record the exact `signal_id` field shape (e.g. `<org/repo>#<N>` vs `<repo>:<N>` vs numeric vs URL), the available result fields, and whether `since` / `until` or any other date filter is accepted by `search_signals`.
+3. **`get_signal_detail` round-trip.** Using a `signal_id` from step 2, call `get_signal_detail(..., include_body=false)` and record the field set. On success, set `MCP_DETAIL_USABLE=True`. If all three probe repos returned empty AND no error, treat the service as alive but unindexed: `MCP_DETAIL_USABLE=False` and continue to step 4.
+4. **Schema probe.** Call `execute_sql("SHOW TABLES")` (or `SELECT name FROM sqlite_master`, `\dt` — try variants). Cache the table list. For each interesting table, call `execute_sql("SELECT * FROM <table> LIMIT 1")` to record column names + types. If all variants error, set `MCP_SQL_USABLE=False` and skip step 5.
+5. **Phase 4 shape probe.** Try one Phase 4–shaped raw-rows query against the discovered schema (per C8 — RAW rows over the full window, NOT pre-aggregated). On success set `MCP_SQL_USABLE=True`; on failure set False and record the error string.
+6. **Persist.** Persist the discovered values + both flags to `out_dir/_signals_schema.json` and to the committed `sources/signals_service_discovered.md` (Stage 1.5 deliverable). Stage 2 sub-agents reference these for real strings.
+
+### Fallback contract (verbatim across all Stage-2 prompts)
+
+> Try MCP via <recipe> FIRST. If MCP errors, returns no hit, or db_health() failed at session start, fall back to <gh recipe> and append a row to _meta.fallback_used.
+
+Each fallback row records `{ref, tool_attempted, tool_succeeded, reason}` per the C5 schema in `topics/topic_json_schema.md`.
+
+### Open-issue semantics (per C3)
+
+For the Phase-1a `open_issues` topic and "currently open" monitor lookups, **"in window" means `state:open AND updated:in_window`** (activity-based windowing, not creation-based). Long-lived important tickets that pre-date the window but were updated within it MUST be included; conversely, long-stale `state:open` tickets that were not touched in the window are excluded. Researchers use `{search_window.gh_qualifier_issue_updated}` from the C2 `search_window` object verbatim.
+
+For Phase 4 metrics the per-metric bucket field is unchanged and per-metric:
+- `merged_prs` → bucket by `merged_at` / `mergedAt`
+- `opened_issues` → bucket by `created_at` / `createdAt`
+- `closed_issues` → bucket by `closed_at` / `closedAt`
+
+(Stage 1.5 resolves which underscore-or-camelCase variant the live signals-service exposes; until then, treat both forms as candidates.)
+
+### Phase 4 raw-rows pattern (per C8)
+
+The single `execute_sql` per `(repo, metric)` returns **RAW rows** `(number, title, labels, mergedAt|createdAt|closedAt, repo)` over the full `search_window` — NOT pre-aggregated. The plot agent then runs the **existing client-side classification** (title + labels keyword match against `scope/chip_scope_map.md`, with `BOTH` / `NEITHER` semantics intact), buckets by month, and emits the same CSV shape `month,repo,vendor_group,count` that `scripts/plot_ecosystem_activity.py` consumes today.
+
+Net change: O(months × repos × metrics) round-trips → O(repos × metrics) round-trips, identical classification logic, identical CSV schema. Gated by `MCP_SQL_USABLE`; when False, the Phase 4 SQL raw-rows path (used by the plot role) uses the Section-6 `gh search` per-month loop as the only path. The resolved Phase 4 SQL template (with real column names interpolated) lives in `sources/signals_service_discovered.md`.
+
+---
+
+## 1. `gh` — GitHub CLI (DOCUMENTED FALLBACK)
+
+`gh` is the DOCUMENTED FALLBACK for any per-PR / per-issue / per-RFC lookup and per-PR re-sample. It runs whenever the `mcp:signals` Section-0 path errors, returns no hit, or `db_health()` failed at session start (per the **Fallback contract** above). It also remains the verified path for Phase 4's per-month loop when `MCP_SQL_USABLE=False`.
+
+**When**: any claim about a PR, issue, RFC, or release in the framework's repo where the Section-0 MCP path is unavailable per the fallback contract.
 
 **Recipes**:
 ```bash
@@ -103,10 +213,56 @@ gh search code 'in:file repo:SemiAnalysisAI/InferenceX <feature>' --limit 50
 
 ---
 
+## 6. `gh-search-bulk` — ecosystem activity time-series queries (Phase 4)
+
+**When**: the Phase 4 `plot_ecosystem_activity` role bulk-fetching merged PRs / opened issues / closed issues per `(repo, month)` to build a time-series CSV. **Do NOT** use these recipes for per-feature research in Phase 1 — those topics use the per-PR `gh pr view` / `gh issue view` flow above.
+
+**Vendor classification keywords** for these queries are derived at runtime from `scope/chip_scope_map.md` (the same canonical map Phase 0 uses). Do NOT introduce a parallel keyword file. See `agents/plot_ecosystem_activity.md` for the parsing rules (aliases + in_scope codenames, with a few generic-prefix tokens dropped).
+
+**Recipes (one bucket = one calendar month per repo per metric)**:
+```bash
+# merged PRs in a month
+gh search prs --repo <org/repo> \
+  --merged-at YYYY-MM-01..YYYY-MM-LAST \
+  --json number,title,labels,url \
+  --limit 1000
+
+# opened issues in a month
+gh search issues --repo <org/repo> --include-prs=false \
+  --created YYYY-MM-01..YYYY-MM-LAST \
+  --json number,title,labels,url \
+  --limit 1000
+
+# closed issues in a month
+gh search issues --repo <org/repo> --include-prs=false \
+  --closed YYYY-MM-01..YYYY-MM-LAST \
+  --json number,title,labels,url \
+  --limit 1000
+
+# fallback when `gh search` rejects an option in the installed gh version
+gh api 'search/issues?q=repo:<org/repo>+is:pr+is:merged+merged:YYYY-MM-DD..YYYY-MM-DD&per_page=100'
+```
+
+**Bucket field per metric** (must not be mixed within one CSV):
+
+| Metric | Search qualifier | Bucket field |
+|---|---|---|
+| `merged_prs` | `is:pr is:merged merged:<range>` | `mergedAt` |
+| `opened_issues` | `is:issue created:<range>` | `createdAt` |
+| `closed_issues` | `is:issue is:closed closed:<range>` | `closedAt` |
+
+**Pagination + 1000-hit ceiling.** GitHub's Search API caps at ~1000 results per query. If a single (repo, month) bucket would exceed that, split the month into halves on the same qualifier (`merged:YYYY-MM-01..YYYY-MM-15` then `merged:YYYY-MM-16..YYYY-MM-LAST`) and union the result sets, deduping by `number`.
+
+**Classification.** Use entry `title` and each `labels[*].name` only — do NOT bulk-fetch bodies (would multiply API cost ~100×). Entries matching multiple vendor groups land in CSV row `BOTH`; entries matching none land in `NEITHER`. Both are excluded from the default plot but counted in `<metric>_methods.md`.
+
+---
+
 ## Source-tag conventions
 
 In `_meta.sources_used` use these tags exactly:
-- `gh` — any GitHub CLI / API call
+- `mcp:signals` — any `signals-service` MCP server call (`db_health`, `get_stats`, `search_signals`, `get_signal_detail`, `execute_sql`). Per Section 0, this is the PRIMARY tag for per-PR / per-issue lookups and the Phase 4 raw-rows pattern.
+- `gh` — any GitHub CLI / API call (per-PR / per-issue / scoped `--search`). Per Section 1, this is the DOCUMENTED FALLBACK for `mcp:signals`. Whenever a fallback occurs, the researcher / monitor MUST also append a row to `_meta.fallback_used` per the C5 schema.
+- `gh-search-bulk` — Phase 4 bulk monthly Search queries (Section 6); paired with the methods note for reproducibility. Used as the Phase 4 fallback path when `MCP_SQL_USABLE=False`.
 - `WebFetch:<host>` — e.g. `WebFetch:docs.vllm.ai`
 - `WebSearch` — discovery search (the followup `WebFetch` is logged separately)
 - `mlperf` — MLPerf data
